@@ -1,5 +1,5 @@
 
-import React, { useState, useEffect, useCallback } from 'react';
+import React, { useState, useEffect } from 'react';
 import { HashRouter as Router, Routes, Route, Link, useNavigate, Navigate, useLocation } from 'react-router-dom';
 import { PrescriptionAnalysis, TimeOfDay, ReminderPreference, PatientInfo, User, Medicine } from './types';
 import { geminiService } from './services/geminiService';
@@ -35,7 +35,7 @@ const Nav: React.FC<{ user: User | null; onLogout: () => void }> = ({ user, onLo
   const isHome = location.pathname === '/';
 
   return (
-    <nav className="sticky top-0 z-50 glass-effect border-b border-slate-200">
+    <nav className="sticky top-0 z-50 bg-white/80 backdrop-blur-md border-b border-slate-200">
       <div className="container mx-auto px-6 h-16 flex items-center justify-between">
         <div className="flex items-center gap-6">
           <Link to="/" className="flex items-center gap-2 group">
@@ -72,41 +72,61 @@ const LandingPage: React.FC<{ isAuthenticated: boolean }> = ({ isAuthenticated }
   const navigate = useNavigate();
   return (
     <div className="bg-white min-h-screen">
-      <section className="container mx-auto px-6 py-16 md:py-24 flex flex-col items-center text-center">
-        <div className="inline-flex items-center gap-2 px-4 py-2 bg-blue-50 rounded-full border border-blue-100 mb-8 animate-in fade-in slide-in-from-top-4 duration-1000">
+      {/* Hero Section */}
+      <section className="container mx-auto px-6 py-20 flex flex-col items-center text-center">
+        <div className="inline-flex items-center gap-2 px-4 py-2 bg-blue-50 rounded-full border border-blue-100 mb-8">
           <span className="w-2 h-2 bg-blue-500 rounded-full animate-pulse"></span>
-          <span className="text-xs font-black text-blue-600 uppercase tracking-widest">Medical AI Companion</span>
+          <span className="text-xs font-black text-blue-600 uppercase tracking-widest">Elderly Care Companion</span>
         </div>
-        <h1 className="text-5xl md:text-8xl font-black text-slate-900 leading-[0.95] tracking-tighter mb-8">
-          Healthcare <span className="text-blue-600">Simpler</span><br/>
-          than a Phone Call.
+        <h1 className="text-6xl md:text-[7rem] font-black text-slate-900 leading-[0.9] tracking-tighter mb-8">
+          Care that <span className="text-blue-600">Speaks</span><br/>
+          for itself.
         </h1>
-        <p className="text-lg md:text-xl text-slate-500 mb-10 max-w-xl font-medium leading-relaxed">
-          The only prescription reminder that <strong>calls the patient</strong> to speak instructions aloud. No more missed doses or confusion.
+        <p className="text-xl text-slate-500 mb-12 max-w-2xl font-medium leading-relaxed">
+          The only AI prescription tool that decodes doctor handwriting and <strong>calls the patient</strong> to explain their medication in plain English.
         </p>
         <button 
           onClick={() => navigate('/app')}
-          className="px-12 py-6 bg-blue-600 text-white text-xl font-black rounded-[2.5rem] shadow-2xl hover:scale-105 active:scale-95 transition-all mb-20"
+          className="px-14 py-8 bg-blue-600 text-white text-2xl font-black rounded-[2.5rem] shadow-2xl hover:scale-105 active:scale-95 transition-all mb-24"
         >
-          {isAuthenticated ? 'Go to My Dashboard' : 'Start Your Free Session'}
+          {isAuthenticated ? 'Enter Dashboard' : 'Start Free Session'}
         </button>
 
-        {/* SIMPLIFIED HOW IT WORKS */}
-        <div className="w-full max-w-5xl">
-          <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
+        {/* Simplified "How it Works" - High Visual Impact */}
+        <div className="w-full max-w-6xl">
+          <div className="grid grid-cols-1 md:grid-cols-3 gap-8">
             {[
-              { icon: "📸", title: "Scan", desc: "Prescription Scan", color: "bg-blue-600" },
-              { icon: "🧠", title: "Analyze", desc: "AI Safety Logic", color: "bg-indigo-600" },
-              { icon: "📞", title: "Remind", desc: "Voice Call Alert", color: "bg-emerald-600" }
+              { 
+                icon: "📸", 
+                title: "Scan", 
+                desc: "Prescription Scan", 
+                sub: "Take a photo of any prescription note.",
+                color: "bg-blue-600" 
+              },
+              { 
+                icon: "🧠", 
+                title: "Analyze", 
+                desc: "AI Medical Safety", 
+                sub: "AI decodes handwriting and checks for safety.",
+                color: "bg-indigo-600" 
+              },
+              { 
+                icon: "📞", 
+                title: "Remind", 
+                desc: "Voice Call Alert", 
+                sub: "The app calls your phone when it's time to take your pill.",
+                color: "bg-emerald-600" 
+              }
             ].map((step, idx) => (
-              <div key={idx} className="flex flex-col items-center p-8 rounded-[3rem] bg-slate-50 border-2 border-slate-100 transition-all hover:bg-white hover:border-blue-200 hover:shadow-xl group">
-                <div className={`${step.color} w-24 h-24 rounded-[2rem] flex items-center justify-center text-5xl mb-6 shadow-xl group-hover:scale-110 transition-transform`}>
+              <div key={idx} className="relative p-10 rounded-[3.5rem] bg-slate-50 border-2 border-slate-100 group hover:bg-white hover:border-blue-200 hover:shadow-2xl transition-all">
+                <div className={`${step.color} w-24 h-24 rounded-[2rem] flex items-center justify-center text-5xl mb-8 shadow-xl group-hover:rotate-6 transition-transform mx-auto md:mx-0`}>
                   {step.icon}
                 </div>
-                <h3 className="text-2xl font-black text-slate-900 mb-2">{step.title}</h3>
-                <p className="text-slate-400 font-black uppercase text-[10px] tracking-[0.2em]">{step.desc}</p>
+                <h3 className="text-3xl font-black text-slate-900 mb-2">{step.title}</h3>
+                <p className="text-blue-600 font-black uppercase text-[11px] tracking-[0.2em] mb-4">{step.desc}</p>
+                <p className="text-slate-500 font-bold leading-snug">{step.sub}</p>
                 {idx < 2 && (
-                  <div className="hidden md:block absolute right-0 top-1/2 -translate-y-1/2 translate-x-1/2 z-10 text-slate-200 text-4xl">→</div>
+                  <div className="hidden md:block absolute right-[-40px] top-1/2 -translate-y-1/2 text-slate-200 text-4xl font-black z-10">→</div>
                 )}
               </div>
             ))}
@@ -129,12 +149,11 @@ const MainDashboard: React.FC<{ user: User }> = ({ user }) => {
   });
   const [reminderPref, setReminderPref] = useState<ReminderPreference>('voice');
   const [remindersArmed, setRemindersArmed] = useState(false);
-  const [isTestCall, setIsTestCall] = useState(false);
   const [simulatedTime, setSimulatedTime] = useState<TimeOfDay>(TimeOfDay.MORNING);
   const [activeCallMed, setActiveCallMed] = useState<Medicine | null>(null);
   const [showCallUI, setShowCallUI] = useState(false);
 
-  const CONDITIONS = ["Alzheimer's", "Dementia", "Diabetes", "Hypertension", "Arthritis"];
+  const CONDITIONS = ["Alzheimer's", "Dementia", "Forgetfulness", "Diabetes", "Hypertension"];
 
   const handleDataReady = async (source: string) => {
     setIsProcessing(true);
@@ -149,10 +168,8 @@ const MainDashboard: React.FC<{ user: User }> = ({ user }) => {
     } finally { setIsProcessing(false); }
   };
 
-  const handleTestCall = () => {
-    if (!analysis) return;
-    setIsTestCall(true);
-    setActiveCallMed(analysis.medicines[0]);
+  const triggerCall = (med: Medicine) => {
+    setActiveCallMed(med);
     setShowCallUI(true);
   };
 
@@ -168,27 +185,39 @@ const MainDashboard: React.FC<{ user: User }> = ({ user }) => {
     <div className="min-h-screen pb-16 bg-slate-50">
       {showCallUI && activeCallMed && (
         <IncomingCallUI 
-          callerName={isTestCall ? "TEST: Care Assistant" : "SmartCare Guard"}
+          callerName="SmartCare Safety Guard"
           medicineInfo={`${activeCallMed.dosage} of ${activeCallMed.name}`}
           instructions={activeCallMed.instructions}
           timeOfDay={simulatedTime}
           onAccept={() => {}}
-          onDecline={() => { setShowCallUI(false); setIsTestCall(false); }}
+          onDecline={() => setShowCallUI(false)}
         />
       )}
       
-      <div className="container mx-auto px-4 py-6">
+      <div className="container mx-auto px-4 py-8">
         {step === 'onboarding' && (
-          <div className="max-w-md mx-auto bg-white p-10 rounded-[3.5rem] shadow-2xl border-4 border-blue-50">
-            <h2 className="text-3xl font-black text-slate-900 mb-8 tracking-tight">Step 1: Context</h2>
-            <div className="space-y-6">
-              <input type="number" className="w-full px-6 py-4 rounded-2xl bg-slate-50 border-2 border-slate-100 text-xl font-bold outline-none" placeholder="Patient Age (e.g. 80)" value={patientInfo.age} onChange={e => setPatientInfo({...patientInfo, age: e.target.value})} />
-              <select className="w-full px-6 py-4 rounded-2xl bg-slate-50 border-2 border-slate-100 text-xl font-bold outline-none appearance-none" value={patientInfo.condition} onChange={e => setPatientInfo({...patientInfo, condition: e.target.value})}>
-                <option value="">Select Primary Condition</option>
-                {CONDITIONS.map(c => <option key={c} value={c}>{c}</option>)}
-                <option value="Other">Other...</option>
-              </select>
-              <button onClick={() => setStep('upload')} disabled={!patientInfo.age || !patientInfo.condition} className="w-full py-5 bg-blue-600 text-white text-xl font-black rounded-2xl shadow-xl disabled:opacity-30">Next Step</button>
+          <div className="max-w-md mx-auto bg-white p-12 rounded-[4rem] shadow-2xl border-4 border-blue-50 animate-in fade-in slide-in-from-bottom-4">
+            <h2 className="text-4xl font-black text-slate-900 mb-10 tracking-tighter">Who is this for?</h2>
+            <div className="space-y-8">
+              <div className="space-y-2">
+                <label className="text-[10px] font-black text-slate-400 uppercase tracking-widest px-2">Patient Age</label>
+                <input type="number" className="w-full px-8 py-5 rounded-3xl bg-slate-50 border-2 border-slate-100 text-2xl font-black focus:border-blue-600 outline-none" placeholder="e.g. 82" value={patientInfo.age} onChange={e => setPatientInfo({...patientInfo, age: e.target.value})} />
+              </div>
+              <div className="space-y-2">
+                <label className="text-[10px] font-black text-slate-400 uppercase tracking-widest px-2">Primary Concern</label>
+                <select className="w-full px-8 py-5 rounded-3xl bg-slate-50 border-2 border-slate-100 text-xl font-black focus:border-blue-600 outline-none appearance-none" value={patientInfo.condition} onChange={e => setPatientInfo({...patientInfo, condition: e.target.value})}>
+                  <option value="">Select Condition</option>
+                  {CONDITIONS.map(c => <option key={c} value={c}>{c}</option>)}
+                  <option value="Other">Other...</option>
+                </select>
+              </div>
+              <button 
+                onClick={() => setStep('upload')} 
+                disabled={!patientInfo.age || !patientInfo.condition} 
+                className="w-full py-6 bg-blue-600 text-white text-2xl font-black rounded-[2rem] shadow-xl disabled:opacity-20 hover:scale-[1.02] active:scale-95 transition-all"
+              >
+                Scan Prescription
+              </button>
             </div>
           </div>
         )}
@@ -197,19 +226,16 @@ const MainDashboard: React.FC<{ user: User }> = ({ user }) => {
 
         {step === 'dashboard' && analysis && (
           <div className="grid grid-cols-1 lg:grid-cols-12 gap-6 animate-in fade-in duration-500">
-            {/* COMPACT LEFT COLUMN */}
+            {/* Dashboard: Left Column (Schedule - Compact) */}
             <div className="lg:col-span-8 space-y-6">
-              <div className="bg-white p-6 rounded-[2.5rem] border-4 border-slate-100 shadow-sm flex flex-col sm:flex-row items-center justify-between gap-4">
-                <div className="flex items-center gap-4">
-                  <div className="w-12 h-12 bg-blue-600 rounded-xl flex items-center justify-center text-2xl">📋</div>
-                  <div>
-                    <h3 className="font-black text-slate-900 leading-tight">Patient Dashboard</h3>
-                    <p className="text-[10px] font-black text-slate-400 uppercase tracking-widest">{analysis.medicines.length} Active Meds</p>
-                  </div>
+              <div className="bg-white p-6 rounded-[2.5rem] border-4 border-slate-100 shadow-sm flex flex-col md:flex-row items-center justify-between gap-6">
+                <div>
+                  <h3 className="text-xl font-black text-slate-900">Patient Dashboard</h3>
+                  <p className="text-[10px] font-black text-slate-400 uppercase tracking-widest">Active Care Session</p>
                 </div>
-                <div className="flex bg-slate-100 p-1 rounded-xl">
+                <div className="flex bg-slate-100 p-1 rounded-2xl border-2 border-slate-200">
                   {Object.values(TimeOfDay).map(t => (
-                    <button key={t} onClick={() => setSimulatedTime(t)} className={`px-4 py-2 rounded-lg font-black text-[10px] transition-all ${simulatedTime === t ? 'bg-white shadow-sm text-blue-600' : 'text-slate-400 hover:text-slate-600'}`}>
+                    <button key={t} onClick={() => setSimulatedTime(t)} className={`px-4 py-2 rounded-xl font-black text-[10px] transition-all ${simulatedTime === t ? 'bg-white shadow-md text-blue-600' : 'text-slate-400 hover:text-slate-600'}`}>
                       {t.toUpperCase()}
                     </button>
                   ))}
@@ -229,26 +255,36 @@ const MainDashboard: React.FC<{ user: User }> = ({ user }) => {
               </div>
             </div>
 
-            {/* COMPACT RIGHT COLUMN */}
+            {/* Dashboard: Right Column (Controls & AI - Compact) */}
             <div className="lg:col-span-4 space-y-6">
-              <div className="p-6 bg-gradient-to-br from-indigo-600 to-blue-700 text-white rounded-[2.5rem] shadow-xl">
-                <h4 className="text-lg font-black mb-3">AI Briefing</h4>
-                <p className="text-blue-50 text-sm font-bold leading-snug mb-4 opacity-90">{analysis.summary}</p>
-                <VoiceAssistant text={analysis.summary} />
+              <div className="p-8 bg-gradient-to-br from-blue-600 to-indigo-800 text-white rounded-[3rem] shadow-xl">
+                 <h4 className="text-lg font-black mb-4 flex items-center gap-2">
+                   <span className="text-2xl">🧠</span> AI Health Summary
+                 </h4>
+                 <p className="text-blue-50 text-base font-bold leading-relaxed mb-6 opacity-90">{analysis.summary}</p>
+                 <VoiceAssistant text={analysis.summary} />
               </div>
 
               <div className="p-6 bg-white rounded-[2.5rem] border-4 border-slate-100 shadow-sm">
-                 <div className="flex items-center justify-between mb-4">
-                    <h4 className="font-black text-slate-900">Safety Guard</h4>
-                    <span className={`w-2 h-2 rounded-full ${remindersArmed ? 'bg-emerald-500 animate-pulse' : 'bg-red-500'}`}></span>
+                 <div className="flex items-center justify-between mb-4 px-2">
+                    <h4 className="font-black text-slate-900 text-sm">Guard Mode</h4>
+                    <div className="flex items-center gap-2">
+                      <span className={`w-2 h-2 rounded-full ${remindersArmed ? 'bg-emerald-500 animate-pulse' : 'bg-red-500'}`}></span>
+                      <span className="text-[9px] font-black text-slate-400 uppercase tracking-widest">{remindersArmed ? 'Armed' : 'Inactive'}</span>
+                    </div>
                  </div>
                  <button 
                   onClick={() => setRemindersArmed(!remindersArmed)}
-                  className={`w-full py-3 rounded-xl font-black text-xs uppercase tracking-widest transition-all ${remindersArmed ? 'bg-emerald-50 text-emerald-600 border-2 border-emerald-100' : 'bg-blue-600 text-white shadow-lg'}`}
+                  className={`w-full py-4 rounded-2xl font-black text-sm uppercase tracking-widest transition-all ${remindersArmed ? 'bg-emerald-50 text-emerald-600 border-2 border-emerald-100' : 'bg-blue-600 text-white shadow-lg shadow-blue-200'}`}
                  >
-                   {remindersArmed ? 'Guard Active' : 'Enable Voice Guard'}
+                   {remindersArmed ? 'Stop Guard' : 'Start Voice Guard'}
                  </button>
-                 <button onClick={handleTestCall} className="w-full mt-3 py-3 text-slate-400 font-black text-[10px] uppercase hover:text-blue-600 transition-colors">Run Test Call</button>
+                 <button 
+                   onClick={() => triggerCall(analysis.medicines[0])}
+                   className="w-full mt-4 text-[10px] font-black text-slate-400 uppercase tracking-widest hover:text-blue-600 transition-colors"
+                 >
+                   Test Emergency Call
+                 </button>
               </div>
 
               <SmartChatbot 
@@ -270,10 +306,11 @@ const LoginPage: React.FC<{ onLogin: (n: string) => void }> = ({ onLogin }) => {
   const navigate = useNavigate();
   return (
     <div className="min-h-screen bg-slate-50 flex items-center justify-center p-6">
-      <div className="max-w-sm w-full bg-white p-10 rounded-[3rem] shadow-2xl text-center border-4 border-blue-50">
-        <h2 className="text-2xl font-black mb-6">Patient Portal</h2>
-        <input type="text" className="w-full px-6 py-4 rounded-xl bg-slate-50 border-2 border-slate-100 text-lg font-bold mb-4 outline-none" placeholder="Your Name" value={name} onChange={e => setName(e.target.value)} />
-        <button onClick={() => { if(name) { onLogin(name); navigate('/app'); } }} className="w-full py-4 bg-blue-600 text-white font-black rounded-xl shadow-lg">Enter Care Room</button>
+      <div className="max-w-sm w-full bg-white p-12 rounded-[3.5rem] shadow-2xl text-center border-4 border-blue-50">
+        <div className="w-16 h-16 bg-blue-600 rounded-2xl flex items-center justify-center text-white text-3xl font-black mx-auto mb-8 shadow-xl">S</div>
+        <h2 className="text-3xl font-black mb-8 tracking-tighter">Enter Care Room</h2>
+        <input type="text" className="w-full px-6 py-5 rounded-2xl bg-slate-50 border-2 border-slate-100 text-xl font-bold mb-6 outline-none focus:border-blue-600" placeholder="Full Name" value={name} onChange={e => setName(e.target.value)} />
+        <button onClick={() => { if(name) { onLogin(name); navigate('/app'); } }} className="w-full py-5 bg-blue-600 text-white text-xl font-black rounded-2xl shadow-xl hover:scale-105 active:scale-95 transition-all">Sign In</button>
       </div>
     </div>
   );
@@ -293,10 +330,11 @@ const ApiKeyGuard: React.FC<{ children: React.ReactNode }> = ({ children }) => {
 
   if (hasKey === null) return null;
   if (!hasKey) return (
-    <div className="min-h-screen bg-slate-900 flex items-center justify-center p-6">
-      <div className="max-w-xs bg-white p-10 rounded-[3rem] text-center">
-        <h2 className="text-2xl font-black mb-6">Connect AI</h2>
-        <button onClick={handleKey} className="w-full py-4 bg-blue-600 text-white rounded-xl font-black">Select API Key</button>
+    <div className="min-h-screen bg-slate-900 flex items-center justify-center p-6 text-center">
+      <div className="max-w-md bg-white p-14 rounded-[4rem]">
+        <h2 className="text-3xl font-black mb-6">Connect Healthcare AI</h2>
+        <button onClick={handleKey} className="w-full py-6 bg-blue-600 text-white rounded-3xl font-black text-xl shadow-xl">Activate API Key</button>
+        <p className="mt-6 text-slate-400 font-bold">This enables medical-grade handwriting analysis.</p>
       </div>
     </div>
   );
@@ -308,12 +346,14 @@ const App: React.FC = () => {
   return (
     <Router>
       <ApiKeyGuard>
-        <Nav user={user} onLogout={logout} />
-        <Routes>
-          <Route path="/" element={<LandingPage isAuthenticated={isAuthenticated} />} />
-          <Route path="/login" element={<LoginPage onLogin={login} />} />
-          <Route path="/app" element={isAuthenticated ? <MainDashboard user={user!} /> : <Navigate to="/login" />} />
-        </Routes>
+        <div className="min-h-screen flex flex-col">
+          <Nav user={user} onLogout={logout} />
+          <Routes>
+            <Route path="/" element={<LandingPage isAuthenticated={isAuthenticated} />} />
+            <Route path="/login" element={<LoginPage onLogin={login} />} />
+            <Route path="/app" element={isAuthenticated ? <MainDashboard user={user!} /> : <Navigate to="/login" />} />
+          </Routes>
+        </div>
       </ApiKeyGuard>
     </Router>
   );

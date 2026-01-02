@@ -23,17 +23,17 @@ const ScheduleCard: React.FC<ScheduleCardProps> = ({ time, medicines, takenKeys,
   const theme = getTheme(time);
 
   return (
-    <div className={`p-5 rounded-[2rem] border-2 ${theme.split(' text')[0]} flex flex-col transition-all hover:shadow-md`}>
-      <div className="flex items-center gap-3 mb-4">
-        <div className="w-10 h-10 bg-white rounded-xl flex items-center justify-center shadow-sm text-lg">
+    <div className={`p-4 rounded-[2rem] border-2 ${theme.split(' text')[0]} flex flex-col transition-all hover:shadow-lg`}>
+      <div className="flex items-center gap-3 mb-4 px-2">
+        <div className="w-10 h-10 bg-white rounded-xl flex items-center justify-center shadow-sm text-xl">
           {TIME_ICONS[time]}
         </div>
         <div>
-          <h3 className={`font-black uppercase tracking-widest text-[10px] ${theme.split(' border')[2]}`}>
+          <h3 className={`font-black uppercase tracking-widest text-[11px] ${theme.split(' border')[2]}`}>
             {time}
           </h3>
           <p className="text-[9px] font-black text-slate-400 uppercase tracking-widest">
-            {medicines.length} Pills
+            {medicines.length > 0 ? `${medicines.length} Pills Due` : 'Free'}
           </p>
         </div>
       </div>
@@ -46,18 +46,18 @@ const ScheduleCard: React.FC<ScheduleCardProps> = ({ time, medicines, takenKeys,
               <div key={med.id} className={`bg-white/80 p-3 rounded-2xl border-2 transition-all flex flex-col gap-2 ${isTaken ? 'opacity-40 border-emerald-100' : 'border-white shadow-sm hover:border-blue-100'}`}>
                 <div className="flex justify-between items-start">
                    <div className="flex flex-col truncate pr-2">
-                      <span className="text-[11px] font-black text-slate-900 truncate">{med.name}</span>
-                      <span className="text-[8px] font-black text-slate-400 uppercase">{med.dosage}</span>
+                      <span className="text-xs font-black text-slate-900 truncate leading-tight">{med.name}</span>
+                      <span className="text-[9px] font-black text-slate-400 uppercase tracking-tight">{med.dosage}</span>
                    </div>
                    <button 
                     onClick={() => !isTaken && onMarkTaken(med.id, time)}
-                    className={`w-6 h-6 rounded-lg flex items-center justify-center text-[10px] transition-all ${isTaken ? 'bg-emerald-500 text-white' : 'bg-slate-50 text-slate-300 hover:bg-emerald-500 hover:text-white border border-slate-100'}`}
+                    className={`w-7 h-7 rounded-lg flex items-center justify-center text-[10px] transition-all flex-shrink-0 ${isTaken ? 'bg-emerald-500 text-white' : 'bg-slate-100 text-slate-300 hover:bg-emerald-500 hover:text-white border border-slate-200'}`}
                    >
                      {isTaken ? '✓' : ''}
                    </button>
                 </div>
                 {!isTaken && (
-                  <p className="text-[9px] font-bold text-slate-500 leading-tight italic">
+                  <p className="text-[10px] font-bold text-slate-600 leading-tight italic opacity-80">
                     "{med.instructions}"
                   </p>
                 )}
@@ -65,8 +65,8 @@ const ScheduleCard: React.FC<ScheduleCardProps> = ({ time, medicines, takenKeys,
             );
           })
         ) : (
-          <div className="flex-1 flex items-center justify-center py-6">
-            <span className="text-[9px] font-black text-slate-300 uppercase tracking-widest italic">All Set</span>
+          <div className="flex-1 flex items-center justify-center py-6 border-2 border-dashed border-slate-200/50 rounded-2xl">
+            <span className="text-[10px] font-black text-slate-300 uppercase tracking-widest italic">All Set</span>
           </div>
         )}
       </div>
