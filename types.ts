@@ -6,6 +6,8 @@ export enum TimeOfDay {
   NIGHT = 'Night'
 }
 
+export type Language = 'en' | 'hi' | 'te';
+
 export interface User {
   id: string;
   name: string;
@@ -29,6 +31,8 @@ export interface Medicine {
 export interface PatientInfo {
   age: string;
   condition: string;
+  language: Language;
+  caregiverRelationship: string;
 }
 
 export interface PrescriptionAnalysis {

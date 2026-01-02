@@ -1,36 +1,44 @@
 
 import { GoogleGenAI, Type } from "@google/genai";
-import { PrescriptionAnalysis, Medicine, PatientInfo, ChatMessage } from "../types";
+import { PrescriptionAnalysis, Medicine, PatientInfo, ChatMessage, Language } from "../types";
 
 export class GeminiService {
   private getClient(): GoogleGenAI {
     return new GoogleGenAI({ apiKey: process.env.API_KEY });
   }
 
-  async analyzePrescription(base64Image: string, patientInfo?: PatientInfo): Promise<PrescriptionAnalysis> {
+  private getLanguageName(lang: Language): string {
+    switch (lang) {
+      case 'hi': return 'Hindi';
+      case 'te': return 'Telugu';
+      default: return 'English';
+    }
+  }
+
+  async analyzePrescription(base64Image: string, patientInfo: PatientInfo): Promise<PrescriptionAnalysis> {
     const ai = this.getClient();
+    const langName = this.getLanguageName(patientInfo.language);
     
-    const systemInstruction = `YOU ARE A SENIOR CLINICAL PHARMACIST & VISION EXPERT.
+    const systemInstruction = `YOU ARE A WORLD-CLASS CLINICAL PHARMACIST AND MEDICAL VISION EXPERT.
     
-    HANDWRITING DECODING PROTOCOL:
-    1. VISUAL EVIDENCE: Carefully trace strokes in handwritten text. Use medical context to resolve ambiguities (e.g., "1" vs "l", "0" vs "o").
-    2. CLINICAL VALIDATION: Compare recognized drug names against the patient's condition: ${patientInfo?.condition}. If the handwriting says "Amox...n" and the patient is ${patientInfo?.age} years old, it is likely Amoxicillin.
-    3. DOSAGE SANITY CHECK: Verify if the recognized dosage (e.g., 500mg) is standard for that drug. If it seems lethal or impossible, flag it.
-    4. INTERACTION CHECK: Look for contraindications between ALL drugs listed in the scan.
+    MISSION: Precise transcription of doctor handwriting with cultural and linguistic translation.
     
-    LATIN ABBREVIATIONS:
-    - PO: by mouth
-    - BID: twice a day
-    - TID: three times a day
-    - QID: four times a day
-    - QHS: at bedtime
-    - PRN: as needed
+    REASONING STEPS:
+    1. VISION: Analyze the base64 image. Detect cursive medicine names, dosages (mg/ml), and Latin abbreviations.
+    2. CONTEXT: Patient is ${patientInfo.age} years old with ${patientInfo.condition}. Validate medication dosages against this context.
+    3. LANGUAGE ADAPTATION: Output for a native ${langName} speaker.
+       - MEDICINE NAME: Keep in English (e.g., "Paracetamol").
+       - DOSAGE: Keep in English/Metric (e.g., "650mg").
+       - INSTRUCTIONS: Translate into simple, conversational ${langName}. (e.g., for Telugu "భోజనం తర్వాత వేసుకోండి").
+       - SUMMARY: Provide a warm daily plan in ${langName}.
     
-    OUTPUT: Provide a simple, clear summary for a senior patient. Avoid medical jargon.`;
+    SCHEMA RULES:
+    - timing: MUST ONLY include ["Morning", "Afternoon", "Evening", "Night"].
+    - color: MUST ONLY include ["blue", "red", "green", "amber", "yellow"].`;
 
     try {
       const response = await ai.models.generateContent({
-        model: 'gemini-3-flash-preview',
+        model: 'gemini-3-pro-preview',
         contents: [
           {
             parts: [
@@ -40,13 +48,13 @@ export class GeminiService {
                   data: base64Image.split(',')[1] || base64Image
                 }
               },
-              { text: "Read this prescription with 100% accuracy. Use your highest reasoning capability to decode handwriting. If any word is totally unreadable, mark it as [UNREADABLE]. Return JSON." }
+              { text: `Transcribe and translate this prescription for a ${langName} speaker. Focus on instructions. Return JSON.` }
             ]
           }
         ],
         config: {
           systemInstruction: systemInstruction,
-          thinkingConfig: { thinkingBudget: 0 },
+          thinkingConfig: { thinkingBudget: 4000 },
           responseMimeType: "application/json",
           responseSchema: {
             type: Type.OBJECT,
@@ -60,14 +68,11 @@ export class GeminiService {
                     dosage: { type: Type.STRING },
                     timing: {
                       type: Type.ARRAY,
-                      items: { type: Type.STRING, enum: ["Morning", "Afternoon", "Evening", "Night"] }
+                      items: { type: Type.STRING }
                     },
                     instructions: { type: Type.STRING },
-                    color: { type: Type.STRING, enum: ["blue", "red", "green", "amber", "yellow"] },
+                    color: { type: Type.STRING },
                     drugClass: { type: Type.STRING },
-                    sideEffects: { type: Type.ARRAY, items: { type: Type.STRING } },
-                    interactions: { type: Type.STRING },
-                    confidenceNote: { type: Type.STRING, description: "Add a note if the handwriting was difficult to read for this specific entry." }
                   },
                   required: ["name", "dosage", "timing", "instructions", "color"]
                 }
@@ -78,7 +83,7 @@ export class GeminiService {
         }
       });
 
-      const text = response.text || '{"medicines": [], "summary": "I could not find any medicines. Please try a clearer photo."}';
+      const text = response.text || '{"medicines": [], "summary": "Error"}';
       const result = JSON.parse(text);
       
       return {
@@ -94,56 +99,18 @@ export class GeminiService {
     }
   }
 
-  async getGlobalHealthAlerts(): Promise<{ text: string; sources: any[] }> {
+  async askQuestion(query: string, medicines: Medicine[], history: ChatMessage[], patientInfo: PatientInfo): Promise<{ text: string; sources?: any[] }> {
     const ai = this.getClient();
-    const response = await ai.models.generateContent({
-      model: "gemini-3-flash-preview",
-      contents: "List the most critical medical news, FDA drug recalls, or public health alerts from the last 7 days. Focus on things relevant to medication safety.",
-      config: {
-        tools: [{ googleSearch: {} }]
-      }
-    });
-
-    return {
-      text: response.text || "Scanning for health alerts...",
-      sources: response.candidates?.[0]?.groundingMetadata?.groundingChunks || []
-    };
-  }
-
-  async getNearbySupport(lat: number, lng: number): Promise<{ text: string; sources: any[] }> {
-    const ai = this.getClient();
-    const response = await ai.models.generateContent({
-      model: "gemini-2.5-flash",
-      contents: "Locate the 3 nearest pharmacies. Mention their name and if they offer prescription pickup services.",
-      config: {
-        tools: [{ googleMaps: {} }],
-        toolConfig: {
-          retrievalConfig: {
-            latLng: { latitude: lat, longitude: lng }
-          }
-        }
-      }
-    });
-
-    return {
-      text: response.text || "Locating local pharmacies...",
-      sources: response.candidates?.[0]?.groundingMetadata?.groundingChunks || []
-    };
-  }
-
-  async askQuestion(query: string, medicines: Medicine[], history: ChatMessage[], patientInfo?: PatientInfo): Promise<{ text: string; sources?: any[] }> {
-    const ai = this.getClient();
+    const langName = this.getLanguageName(patientInfo.language);
     
-    // Map internal history to Gemini format
     const contents = history.map(msg => ({
       role: msg.sender === 'user' ? 'user' : 'model',
       parts: [{ text: msg.text }]
     }));
 
-    // Add current query with context
     contents.push({
       role: 'user',
-      parts: [{ text: `User Query: ${query}\nPatient Context: ${patientInfo?.condition || 'Unknown'}\nActive Meds: ${JSON.stringify(medicines)}` }]
+      parts: [{ text: `Language: ${langName}\nPatient: ${patientInfo.age}yr, ${patientInfo.condition}\nQuery: ${query}` }]
     });
 
     const response = await ai.models.generateContent({
@@ -151,25 +118,12 @@ export class GeminiService {
       contents: contents as any,
       config: {
         tools: [{ googleSearch: {} }],
-        systemInstruction: `YOU ARE A HIGHLY CAUTIOUS PHARMACEUTICAL CARE ASSISTANT.
-
-CLINICAL INTERROGATION PROTOCOL:
-1. GATHER CONTEXT: If a user asks about symptoms, pain, or medication side effects, you MUST NOT give direct advice or medical reassurance immediately.
-2. ASK CLARIFYING QUESTIONS FIRST: 
-   - If they mention "pain", you MUST respond: "I'm sorry you're feeling pain. Where exactly does it hurt, and how long has it been bothering you?"
-   - If they mention a "side effect" or feeling "weird/unwell", ask: "When did you first notice this, and are you feeling any other symptoms like dizziness, nausea, or a rash?"
-   - If they ask "Can I take [X]?" for a new drug, ask: "What specific symptoms are you hoping to treat with [X]?"
-
-3. ONCE CONTEXT IS GIVEN: Only after the user provides these details should you use Google Search to check interactions and give a cautious, standard medical answer.
-4. SAFETY LIMITS: Always advise contacting a professional for new or worsening symptoms. If symptoms are severe (chest pain, difficulty breathing), tell them to call emergency services immediately.
-5. SIMPLE LANGUAGE: Use clear, slow-paced language suitable for seniors. Keep responses concise.
-
-Your primary goal is to be a thorough gatekeeper. Always prioritize asking for missing details before providing a final recommendation.`
+        systemInstruction: `You are a medical assistant. RESPOND ENTIRELY IN ${langName.toUpperCase()}. Be warm and safety-conscious.`
       }
     });
 
     return {
-      text: response.text || "I'm sorry, I'm having trouble connecting to medical databases. Please check with your pharmacist.",
+      text: response.text || "...",
       sources: response.candidates?.[0]?.groundingMetadata?.groundingChunks || []
     };
   }

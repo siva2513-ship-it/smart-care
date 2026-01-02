@@ -1,26 +1,69 @@
 
 import React, { useEffect, useState } from 'react';
-import { TimeOfDay } from '../types';
+import { TimeOfDay, Language } from '../types';
 
 interface IncomingCallUIProps {
   onAccept: () => void;
   onDecline: () => void;
   callerName: string;
-  medicineInfo: string;
+  medicineName: string;
+  dosage: string;
   instructions: string;
   timeOfDay: TimeOfDay;
+  lang?: Language;
 }
 
 const IncomingCallUI: React.FC<IncomingCallUIProps> = ({ 
   onAccept, 
   onDecline, 
   callerName, 
-  medicineInfo, 
+  medicineName,
+  dosage,
   instructions,
-  timeOfDay 
+  timeOfDay,
+  lang = 'en'
 }) => {
   const [isAnswered, setIsAnswered] = useState(false);
   const [timer, setTimer] = useState(0);
+
+  const t = {
+    en: {
+      incoming: "Incoming Call",
+      answered: "Voice Session",
+      decline: "Decline",
+      answer: "Answer",
+      hangup: "Hang Up",
+      doseReminder: "Dose Reminder",
+      schedule: "Schedule",
+      aiFinish: "AI will finish the session now",
+      speak: (med: string, dose: string, inst: string) => 
+        `This is your care assistant. It is time for your medication: ${dose} of ${med}. My records say: ${inst}. Please take your medicine now.`
+    },
+    hi: {
+      incoming: "आने वाली कॉल",
+      answered: "वॉयस सेशन",
+      decline: "काटें",
+      answer: "उठाएं",
+      hangup: "फोन रखें",
+      doseReminder: "दवा की याद दिलाना",
+      schedule: "समय सारणी",
+      aiFinish: "एआई अब सत्र समाप्त करेगा",
+      speak: (med: string, dose: string, inst: string) => 
+        `नमस्ते। यह आपका केयर असिस्टेंट है। आपकी दवा का समय हो गया है: ${med} की ${dose}। निर्देश हैं: ${inst}। कृपया अपनी दवा अभी लें।`
+    },
+    te: {
+      incoming: "వస్తున్న కాల్",
+      answered: "వాయిస్ సెషన్",
+      decline: "తిరస్కరించు",
+      answer: "సమాధానం",
+      hangup: "కాల్ ఆపు",
+      doseReminder: "మందుల రిమైండర్",
+      schedule: "షెడ్యూల్",
+      aiFinish: "AI సెషన్‌ను ముగిస్తుంది",
+      speak: (med: string, dose: string, inst: string) => 
+        `నమస్కారం. ఇది మీ కేర్ అసిస్టెంట్. మీ మందుల సమయం అయింది. మందు పేరు: ${med}, మోతాదు: ${dose}. నా రికార్డులు ఇలా చెబుతున్నాయి: ${inst}. దయచేసి ఇప్పుడే మీ మందు తీసుకోండి.`
+    }
+  }[lang];
 
   useEffect(() => {
     let interval: any;
@@ -30,9 +73,12 @@ const IncomingCallUI: React.FC<IncomingCallUIProps> = ({
       if ('speechSynthesis' in window) {
         window.speechSynthesis.cancel();
         
-        const text = `Good ${timeOfDay}. This is your care assistant. It is time for your medication: ${medicineInfo}. My records say to ${instructions}. Please take your medicine now.`;
-        const utterance = new SpeechSynthesisUtterance(text);
-        utterance.rate = 0.85;
+        const locale = lang === 'hi' ? 'hi-IN' : lang === 'te' ? 'te-IN' : 'en-US';
+        const speechText = t.speak(medicineName, dosage, instructions);
+
+        const utterance = new SpeechSynthesisUtterance(speechText);
+        utterance.lang = locale;
+        utterance.rate = 0.8; // Slightly slower for better clarity
         window.speechSynthesis.speak(utterance);
       }
     }
@@ -43,7 +89,7 @@ const IncomingCallUI: React.FC<IncomingCallUIProps> = ({
         window.speechSynthesis.cancel();
       }
     };
-  }, [isAnswered, medicineInfo, timeOfDay, instructions]);
+  }, [isAnswered, medicineName, dosage, instructions, lang, t]);
 
   const handleAccept = () => {
     setIsAnswered(true);
@@ -58,7 +104,7 @@ const IncomingCallUI: React.FC<IncomingCallUIProps> = ({
   };
 
   return (
-    <div className="fixed inset-0 z-[100] bg-slate-900 flex flex-col items-center justify-between py-20 animate-in fade-in duration-500 overflow-hidden">
+    <div className="fixed inset-0 z-[100] bg-slate-900 flex flex-col items-center justify-between py-20 animate-in fade-in duration-500 overflow-hidden font-sans">
       {!isAnswered && (
         <div className="absolute inset-0 flex items-center justify-center -z-10">
           <div className="w-96 h-96 bg-blue-500/10 rounded-full animate-ping-slow"></div>
@@ -73,7 +119,7 @@ const IncomingCallUI: React.FC<IncomingCallUIProps> = ({
         <div>
           <h2 className="text-4xl font-black text-white">{callerName}</h2>
           <p className="text-blue-300 text-xl font-bold uppercase tracking-widest mt-2">
-            {isAnswered ? `Voice Session • ${Math.floor(timer / 60)}:${(timer % 60).toString().padStart(2, '0')}` : `${timeOfDay} Dose Reminder`}
+            {isAnswered ? `${t.answered} • ${Math.floor(timer / 60)}:${(timer % 60).toString().padStart(2, '0')}` : `${t.doseReminder}`}
           </p>
         </div>
       </div>
@@ -81,10 +127,10 @@ const IncomingCallUI: React.FC<IncomingCallUIProps> = ({
       {isAnswered ? (
         <div className="max-w-md w-full px-8 animate-in zoom-in slide-in-from-bottom-8 duration-500 text-center flex-1 flex flex-col justify-center">
           <div className="bg-white/10 backdrop-blur-xl p-10 rounded-[4rem] border border-white/20 shadow-2xl mb-12">
-            <p className="text-blue-200 text-sm font-black uppercase tracking-widest mb-6">{timeOfDay} Schedule</p>
+            <p className="text-blue-200 text-sm font-black uppercase tracking-widest mb-6">{t.schedule}</p>
             <div className="space-y-6">
               <p className="text-white text-3xl font-black leading-tight">
-                {medicineInfo}
+                {medicineName} ({dosage})
               </p>
               <div className="flex justify-center items-end gap-1.5 h-16">
                 {[...Array(8)].map((_, i) => (
@@ -106,8 +152,9 @@ const IncomingCallUI: React.FC<IncomingCallUIProps> = ({
         </div>
       ) : (
         <div className="px-12 text-center flex-1 flex flex-col justify-center">
-            <p className="text-slate-400 font-black text-lg uppercase tracking-widest mb-2">Incoming Call</p>
-            <p className="text-white text-4xl font-black">{medicineInfo}</p>
+            <p className="text-slate-400 font-black text-lg uppercase tracking-widest mb-2">{t.incoming}</p>
+            <p className="text-white text-4xl font-black">{medicineName}</p>
+            <p className="text-blue-300 text-xl font-bold mt-2">{dosage}</p>
         </div>
       )}
 
@@ -124,7 +171,7 @@ const IncomingCallUI: React.FC<IncomingCallUIProps> = ({
                   <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={3} d="M6 18L18 6M6 6l12 12" />
                 </svg>
               </div>
-              <span className="text-red-400 font-black uppercase text-xs tracking-widest">Decline</span>
+              <span className="text-red-400 font-black uppercase text-xs tracking-widest">{t.decline}</span>
             </button>
             <button 
               onClick={handleAccept} 
@@ -136,7 +183,7 @@ const IncomingCallUI: React.FC<IncomingCallUIProps> = ({
                   <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={3} d="M3 5a2 2 0 012-2h3.28a1 1 0 01.948.684l1.498 4.493a1 1 0 01-.502 1.21l-2.257 1.13a11.042 11.042 0 005.516 5.516l1.13-2.257a1 1 0 011.21-.502l4.493 1.498a1 1 0 01.684.949V19a2 2 0 01-2 2h-1C9.716 21 3 14.284 3 6V5z" />
                 </svg>
               </div>
-              <span className="text-emerald-400 font-black uppercase text-xs tracking-widest">Answer</span>
+              <span className="text-emerald-400 font-black uppercase text-xs tracking-widest">{t.answer}</span>
             </button>
           </div>
         ) : (
@@ -151,9 +198,9 @@ const IncomingCallUI: React.FC<IncomingCallUIProps> = ({
                   <path d="M6.62 10.79a15.15 15.15 0 006.59 6.59l2.2-2.2a1 1 0 011.11-.27c1.12.45 2.33.69 3.58.69a1 1 0 011 1V20a1 1 0 01-1 1A17 17 0 013 4a1 1 0 011-1h3.5a1 1 0 011 1c0 1.25.24 2.46.69 3.58a1 1 0 01-.27 1.11l-2.3 2.3z" />
                 </svg>
               </div>
-              <span className="text-red-400 font-black uppercase text-sm tracking-[0.2em] animate-pulse">Hang Up</span>
+              <span className="text-red-400 font-black uppercase text-sm tracking-[0.2em] animate-pulse">{t.hangup}</span>
             </button>
-            <p className="text-slate-500 font-bold text-xs uppercase tracking-widest opacity-60">AI will finish the session now</p>
+            <p className="text-slate-500 font-bold text-xs uppercase tracking-widest opacity-60">{t.aiFinish}</p>
           </div>
         )}
       </div>

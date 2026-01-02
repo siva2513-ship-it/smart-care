@@ -1,7 +1,7 @@
 
 import React, { useState, useEffect } from 'react';
 import { HashRouter as Router, Routes, Route, Link, useNavigate, Navigate, useLocation } from 'react-router-dom';
-import { PrescriptionAnalysis, TimeOfDay, ReminderPreference, PatientInfo, User, Medicine } from './types';
+import { PrescriptionAnalysis, TimeOfDay, ReminderPreference, PatientInfo, User, Medicine, Language } from './types';
 import { geminiService } from './services/geminiService';
 import { MOCK_PRESCRIPTION_DATA } from './constants';
 import PrescriptionUpload from './components/PrescriptionUpload';
@@ -10,7 +10,81 @@ import VoiceAssistant from './components/VoiceAssistant';
 import SmartChatbot from './components/SmartChatbot';
 import IncomingCallUI from './components/IncomingCallUI';
 
-// --- AUTH & PERSISTENCE ---
+// --- TRANSLATIONS ---
+
+const UI_STRINGS = {
+  en: {
+    home: "Home",
+    setupProfile: "Setup Profile",
+    ageLabel: "Patient Age",
+    conditionLabel: "Condition",
+    langLabel: "Preferred Language",
+    caregiverLabel: "Who is monitoring?",
+    scanBtn: "Scan Prescription",
+    dashboard: "Patient Dashboard",
+    routine: "Today's Routine",
+    summaryTitle: "AI Health Summary",
+    safetyMode: "Safety Mode",
+    startGuard: "Start Voice Guard",
+    stopGuard: "Stop Monitoring",
+    testCall: "Quick Test Call",
+    armed: "Armed",
+    off: "Off",
+    inspectedBy: "Inspected By",
+    careCircle: "Care Circle Active",
+    statusBadge: "Monitoring Status"
+  },
+  hi: {
+    home: "मुख्य पृष्ठ",
+    setupProfile: "प्रोफ़ाइल सेटअप",
+    ageLabel: "रोगी की आयु",
+    conditionLabel: "बीमारी",
+    langLabel: "पसंदीदा भाषा",
+    caregiverLabel: "निगरानी कौन कर रहा है?",
+    scanBtn: "पर्चा स्कैन करें",
+    dashboard: "रोगी डैशबोर्ड",
+    routine: "आज की दिनचर्या",
+    summaryTitle: "एआई स्वास्थ्य सारांश",
+    safetyMode: "सुरक्षा मोड",
+    startGuard: "वॉयस गार्ड शुरू करें",
+    stopGuard: "निगरानी बंद करें",
+    testCall: "त्वरित परीक्षण कॉल",
+    armed: "सक्रिय",
+    off: "बंद",
+    inspectedBy: "देखरेख करने वाले",
+    careCircle: "केयर सर्कल सक्रिय",
+    statusBadge: "निगरानी की स्थिति"
+  },
+  te: {
+    home: "హోమ్",
+    setupProfile: "ప్రొఫైల్ సెటప్",
+    ageLabel: "రోగి వయస్సు",
+    conditionLabel: "పరిస్థితి",
+    langLabel: "భాష ఎంచుకోండి",
+    caregiverLabel: "ఎవరు పర్యవేక్షిస్తున్నారు?",
+    scanBtn: "ప్రిస్క్రిప్షన్ స్కాన్ చేయండి",
+    dashboard: "రోగి డాష్‌బోర్డ్",
+    routine: "నేటి దినచర్య",
+    summaryTitle: "AI ఆరోగ్య సారాంశం",
+    safetyMode: "భద్రతా మోడ్",
+    startGuard: "వాయిస్ గార్డ్ ప్రారంభించండి",
+    stopGuard: "పర్యవేక్షణ ఆపివేయి",
+    testCall: "పరీక్ష కాల్",
+    armed: "ప్రారంభమైంది",
+    off: "ఆఫ్",
+    inspectedBy: "తనిఖీ చేస్తున్నవారు",
+    careCircle: "కేర్ సర్కిల్ యాక్టివ్",
+    statusBadge: "పర్యవేక్షణ స్థితి"
+  }
+};
+
+const RELATIONSHIPS = {
+  en: ["Child", "Spouse", "Nurse", "Guardian", "Self"],
+  hi: ["बच्चा", "जीवनसाथी", "नर्स", "अभिभावक", "स्वयं"],
+  te: ["పిల్లలు", "భార్య/భర్త", "నర్స్", "సంరక్షకుడు", "నేనే"]
+};
+
+// --- AUTH ---
 
 const useAuth = () => {
   const [user, setUser] = useState<User | null>(() => {
@@ -29,36 +103,31 @@ const useAuth = () => {
   return { user, login, logout, isAuthenticated: !!user };
 };
 
-const Nav: React.FC<{ user: User | null; onLogout: () => void }> = ({ user, onLogout }) => {
+const Nav: React.FC<{ user: User | null; onLogout: () => void; lang: Language }> = ({ user, onLogout, lang }) => {
   const location = useLocation();
-  const navigate = useNavigate();
   const isHome = location.pathname === '/';
+  const labels = UI_STRINGS[lang] || UI_STRINGS.en;
 
   return (
-    <nav className="sticky top-0 z-50 bg-white/80 backdrop-blur-md border-b border-slate-200">
-      <div className="container mx-auto px-6 h-16 flex items-center justify-between">
+    <nav className="sticky top-0 z-50 bg-white/80 backdrop-blur-md border-b border-slate-200 shadow-sm">
+      <div className="container mx-auto px-6 h-14 flex items-center justify-between">
         <div className="flex items-center gap-6">
           <Link to="/" className="flex items-center gap-2 group">
-            <div className="w-8 h-8 bg-blue-600 rounded-lg flex items-center justify-center text-white font-black text-lg shadow-md group-hover:rotate-12 transition-transform">S</div>
-            <span className="text-xl font-black text-slate-800 tracking-tighter">SmartCare</span>
+            <div className="w-7 h-7 bg-blue-600 rounded-lg flex items-center justify-center text-white font-black text-sm shadow-md group-hover:rotate-12 transition-transform">S</div>
+            <span className="text-lg font-black text-slate-800 tracking-tighter">SmartCare</span>
           </Link>
-          <Link to="/" className={`px-3 py-1.5 rounded-xl font-black text-xs flex items-center gap-2 transition-all ${isHome ? 'bg-blue-600 text-white shadow-sm' : 'text-slate-500 hover:bg-slate-100'}`}>
-            🏠 Home
+          <Link to="/" className={`px-2 py-1 rounded-lg font-black text-[10px] flex items-center gap-1 transition-all ${isHome ? 'bg-blue-600 text-white shadow-sm' : 'text-slate-500 hover:bg-slate-100'}`}>
+            🏠 {labels.home}
           </Link>
         </div>
         <div className="flex items-center gap-4">
           {user ? (
             <div className="flex items-center gap-4 pl-4 border-l border-slate-200">
-              <p className="text-xs font-black text-slate-900 hidden sm:block">{user.name}</p>
-              <button onClick={onLogout} className="px-3 py-1.5 bg-slate-100 text-slate-600 font-black text-[10px] rounded-lg hover:bg-red-50 hover:text-red-600 transition-all">Log Out</button>
+              <p className="text-[10px] font-black text-slate-900 hidden sm:block">{user.name}</p>
+              <button onClick={onLogout} className="px-2 py-1 bg-slate-100 text-slate-600 font-black text-[9px] rounded hover:bg-red-50 hover:text-red-600 transition-all">Log Out</button>
             </div>
           ) : (
-            <button 
-              onClick={() => navigate('/login')}
-              className="px-4 py-1.5 bg-blue-600 text-white font-black text-xs rounded-xl hover:bg-blue-700 shadow-sm transition-all"
-            >
-              Sign In
-            </button>
+            <div className="w-1 h-1"></div>
           )}
         </div>
       </div>
@@ -66,68 +135,44 @@ const Nav: React.FC<{ user: User | null; onLogout: () => void }> = ({ user, onLo
   );
 };
 
-// --- CORE APPLICATION ---
+// --- MAIN COMPONENTS ---
 
 const LandingPage: React.FC<{ isAuthenticated: boolean }> = ({ isAuthenticated }) => {
   const navigate = useNavigate();
   return (
     <div className="bg-white min-h-screen">
-      {/* Hero Section */}
-      <section className="container mx-auto px-6 py-20 flex flex-col items-center text-center">
-        <div className="inline-flex items-center gap-2 px-4 py-2 bg-blue-50 rounded-full border border-blue-100 mb-8">
-          <span className="w-2 h-2 bg-blue-500 rounded-full animate-pulse"></span>
-          <span className="text-xs font-black text-blue-600 uppercase tracking-widest">Elderly Care Companion</span>
+      <section className="container mx-auto px-6 py-12 md:py-20 flex flex-col items-center text-center">
+        <div className="inline-flex items-center gap-2 px-3 py-1 bg-blue-50 rounded-full border border-blue-100 mb-6">
+          <span className="w-1.5 h-1.5 bg-blue-500 rounded-full animate-pulse"></span>
+          <span className="text-[10px] font-black text-blue-600 uppercase tracking-widest">Elderly Voice Companion</span>
         </div>
-        <h1 className="text-6xl md:text-[7rem] font-black text-slate-900 leading-[0.9] tracking-tighter mb-8">
-          Care that <span className="text-blue-600">Speaks</span><br/>
-          for itself.
+        <h1 className="text-5xl md:text-[6.5rem] font-black text-slate-900 leading-[0.95] tracking-tighter mb-6">
+          Simple Care.<br/>
+          <span className="text-blue-600">Zero Mistakes.</span>
         </h1>
-        <p className="text-xl text-slate-500 mb-12 max-w-2xl font-medium leading-relaxed">
-          The only AI prescription tool that decodes doctor handwriting and <strong>calls the patient</strong> to explain their medication in plain English.
+        <p className="text-lg text-slate-500 mb-10 max-w-xl font-medium leading-relaxed">
+          The only AI prescription tool that decodes handwriting and <strong>calls the patient</strong> to explain their medication in English, Hindi, or Telugu.
         </p>
         <button 
           onClick={() => navigate('/app')}
-          className="px-14 py-8 bg-blue-600 text-white text-2xl font-black rounded-[2.5rem] shadow-2xl hover:scale-105 active:scale-95 transition-all mb-24"
+          className="px-12 py-6 bg-blue-600 text-white text-xl font-black rounded-[2rem] shadow-2xl hover:scale-105 active:scale-95 transition-all mb-16"
         >
           {isAuthenticated ? 'Enter Dashboard' : 'Start Free Session'}
         </button>
 
-        {/* Simplified "How it Works" - High Visual Impact */}
-        <div className="w-full max-w-6xl">
-          <div className="grid grid-cols-1 md:grid-cols-3 gap-8">
+        <div className="w-full max-w-5xl">
+          <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
             {[
-              { 
-                icon: "📸", 
-                title: "Scan", 
-                desc: "Prescription Scan", 
-                sub: "Take a photo of any prescription note.",
-                color: "bg-blue-600" 
-              },
-              { 
-                icon: "🧠", 
-                title: "Analyze", 
-                desc: "AI Medical Safety", 
-                sub: "AI decodes handwriting and checks for safety.",
-                color: "bg-indigo-600" 
-              },
-              { 
-                icon: "📞", 
-                title: "Remind", 
-                desc: "Voice Call Alert", 
-                sub: "The app calls your phone when it's time to take your pill.",
-                color: "bg-emerald-600" 
-              }
+              { icon: "📸", title: "Scan", desc: "Handwriting Scan", color: "bg-blue-600" },
+              { icon: "🧠", title: "Analyze", desc: "Pro AI Decoding", color: "bg-indigo-600" },
+              { icon: "📞", title: "Speak", desc: "Voice Guidance", color: "bg-emerald-600" }
             ].map((step, idx) => (
-              <div key={idx} className="relative p-10 rounded-[3.5rem] bg-slate-50 border-2 border-slate-100 group hover:bg-white hover:border-blue-200 hover:shadow-2xl transition-all">
-                <div className={`${step.color} w-24 h-24 rounded-[2rem] flex items-center justify-center text-5xl mb-8 shadow-xl group-hover:rotate-6 transition-transform mx-auto md:mx-0`}>
+              <div key={idx} className="relative p-8 rounded-[3rem] bg-slate-50 border-2 border-slate-100 group hover:bg-white hover:border-blue-200 hover:shadow-xl transition-all">
+                <div className={`${step.color} w-20 h-20 rounded-[1.5rem] flex items-center justify-center text-4xl mb-6 shadow-lg group-hover:rotate-3 transition-transform mx-auto md:mx-0`}>
                   {step.icon}
                 </div>
-                <h3 className="text-3xl font-black text-slate-900 mb-2">{step.title}</h3>
-                <p className="text-blue-600 font-black uppercase text-[11px] tracking-[0.2em] mb-4">{step.desc}</p>
-                <p className="text-slate-500 font-bold leading-snug">{step.sub}</p>
-                {idx < 2 && (
-                  <div className="hidden md:block absolute right-[-40px] top-1/2 -translate-y-1/2 text-slate-200 text-4xl font-black z-10">→</div>
-                )}
+                <h3 className="text-2xl font-black text-slate-900 mb-1">{step.title}</h3>
+                <p className="text-blue-600 font-black uppercase text-[10px] tracking-[0.2em] mb-2">{step.desc}</p>
               </div>
             ))}
           </div>
@@ -137,10 +182,8 @@ const LandingPage: React.FC<{ isAuthenticated: boolean }> = ({ isAuthenticated }
   );
 };
 
-const MainDashboard: React.FC<{ user: User }> = ({ user }) => {
+const MainDashboard: React.FC<{ user: User; patientInfo: PatientInfo; setPatientInfo: (p: PatientInfo) => void }> = ({ user, patientInfo, setPatientInfo }) => {
   const [step, setStep] = useState<'onboarding' | 'upload' | 'dashboard'>('onboarding');
-  const [patientInfo, setPatientInfo] = useState<PatientInfo>({ age: '', condition: '' });
-  const [customCondition, setCustomCondition] = useState('');
   const [isProcessing, setIsProcessing] = useState(false);
   const [analysis, setAnalysis] = useState<PrescriptionAnalysis | null>(null);
   const [takenKeys, setTakenKeys] = useState<Set<string>>(() => {
@@ -153,16 +196,21 @@ const MainDashboard: React.FC<{ user: User }> = ({ user }) => {
   const [activeCallMed, setActiveCallMed] = useState<Medicine | null>(null);
   const [showCallUI, setShowCallUI] = useState(false);
 
-  const CONDITIONS = ["Alzheimer's", "Dementia", "Forgetfulness", "Diabetes", "Hypertension"];
+  const labels = UI_STRINGS[patientInfo.language] || UI_STRINGS.en;
+  const LANGUAGES: {id: Language, label: string, flag: string}[] = [
+    {id: 'en', label: 'English', flag: '🇺🇸'},
+    {id: 'hi', label: 'हिन्दी', flag: '🇮🇳'},
+    {id: 'te', label: 'తెలుగు', flag: '🇮🇳'}
+  ];
 
   const handleDataReady = async (source: string) => {
     setIsProcessing(true);
     try {
-      const conditionToSubmit = patientInfo.condition === 'Other' ? customCondition : patientInfo.condition;
-      const result = await geminiService.analyzePrescription(source, { ...patientInfo, condition: conditionToSubmit });
+      const result = await geminiService.analyzePrescription(source, patientInfo);
       setAnalysis(result);
       setStep('dashboard');
     } catch (err) {
+      console.error("Analysis failed, using mock data", err);
       setAnalysis(MOCK_PRESCRIPTION_DATA);
       setStep('dashboard');
     } finally { setIsProcessing(false); }
@@ -174,49 +222,74 @@ const MainDashboard: React.FC<{ user: User }> = ({ user }) => {
   };
 
   const markAsTaken = (id: string, time: TimeOfDay) => {
-    setTakenKeys(prev => {
-      const next = new Set(prev);
-      next.add(`${id}-${time}`);
-      return next;
-    });
+    const next = new Set(takenKeys);
+    next.add(`${id}-${time}`);
+    setTakenKeys(next);
+    localStorage.setItem('scr_taken_keys', JSON.stringify(Array.from(next)));
   };
 
   return (
-    <div className="min-h-screen pb-16 bg-slate-50">
+    <div className="min-h-screen pb-20 bg-slate-50">
       {showCallUI && activeCallMed && (
         <IncomingCallUI 
-          callerName="SmartCare Safety Guard"
-          medicineInfo={`${activeCallMed.dosage} of ${activeCallMed.name}`}
+          callerName="SmartCare Pro"
+          medicineName={activeCallMed.name}
+          dosage={activeCallMed.dosage}
           instructions={activeCallMed.instructions}
           timeOfDay={simulatedTime}
+          lang={patientInfo.language}
           onAccept={() => {}}
           onDecline={() => setShowCallUI(false)}
         />
       )}
       
-      <div className="container mx-auto px-4 py-8">
+      <div className="container mx-auto px-4 py-6">
         {step === 'onboarding' && (
-          <div className="max-w-md mx-auto bg-white p-12 rounded-[4rem] shadow-2xl border-4 border-blue-50 animate-in fade-in slide-in-from-bottom-4">
-            <h2 className="text-4xl font-black text-slate-900 mb-10 tracking-tighter">Who is this for?</h2>
-            <div className="space-y-8">
+          <div className="max-w-md mx-auto bg-white p-10 rounded-[3rem] shadow-2xl border-4 border-blue-50 animate-in fade-in slide-in-from-bottom-4">
+            <h2 className="text-3xl font-black text-slate-900 mb-6 tracking-tighter">{labels.setupProfile}</h2>
+            <div className="space-y-6">
               <div className="space-y-2">
-                <label className="text-[10px] font-black text-slate-400 uppercase tracking-widest px-2">Patient Age</label>
-                <input type="number" className="w-full px-8 py-5 rounded-3xl bg-slate-50 border-2 border-slate-100 text-2xl font-black focus:border-blue-600 outline-none" placeholder="e.g. 82" value={patientInfo.age} onChange={e => setPatientInfo({...patientInfo, age: e.target.value})} />
+                <label className="text-[9px] font-black text-slate-400 uppercase tracking-widest px-1">{labels.ageLabel}</label>
+                <input type="number" className="w-full px-6 py-4 rounded-2xl bg-slate-50 border-2 border-slate-100 text-xl font-black focus:border-blue-600 outline-none" placeholder="e.g. 75" value={patientInfo.age} onChange={e => setPatientInfo({...patientInfo, age: e.target.value})} />
               </div>
+              
               <div className="space-y-2">
-                <label className="text-[10px] font-black text-slate-400 uppercase tracking-widest px-2">Primary Concern</label>
-                <select className="w-full px-8 py-5 rounded-3xl bg-slate-50 border-2 border-slate-100 text-xl font-black focus:border-blue-600 outline-none appearance-none" value={patientInfo.condition} onChange={e => setPatientInfo({...patientInfo, condition: e.target.value})}>
-                  <option value="">Select Condition</option>
-                  {CONDITIONS.map(c => <option key={c} value={c}>{c}</option>)}
-                  <option value="Other">Other...</option>
-                </select>
+                <label className="text-[9px] font-black text-slate-400 uppercase tracking-widest px-1">{labels.langLabel}</label>
+                <div className="grid grid-cols-3 gap-2">
+                  {LANGUAGES.map(lang => (
+                    <button 
+                      key={lang.id} 
+                      onClick={() => setPatientInfo({...patientInfo, language: lang.id})}
+                      className={`py-3 rounded-xl border-2 font-bold text-sm transition-all flex flex-col items-center justify-center gap-1 ${patientInfo.language === lang.id ? 'bg-blue-600 text-white border-blue-400 shadow-md' : 'bg-slate-50 text-slate-500 border-slate-100 hover:border-blue-200'}`}
+                    >
+                      <span className="text-xl">{lang.flag}</span>
+                      <span>{lang.label}</span>
+                    </button>
+                  ))}
+                </div>
               </div>
+
+              <div className="space-y-2">
+                <label className="text-[9px] font-black text-slate-400 uppercase tracking-widest px-1">{labels.caregiverLabel}</label>
+                <div className="grid grid-cols-2 gap-2">
+                  {(RELATIONSHIPS[patientInfo.language] || RELATIONSHIPS.en).map(rel => (
+                    <button 
+                      key={rel} 
+                      onClick={() => setPatientInfo({...patientInfo, caregiverRelationship: rel})}
+                      className={`py-2 rounded-xl border-2 font-bold text-xs transition-all ${patientInfo.caregiverRelationship === rel ? 'bg-indigo-600 text-white border-indigo-400 shadow-md' : 'bg-slate-50 text-slate-500 border-slate-100 hover:border-indigo-200'}`}
+                    >
+                      {rel}
+                    </button>
+                  ))}
+                </div>
+              </div>
+
               <button 
                 onClick={() => setStep('upload')} 
-                disabled={!patientInfo.age || !patientInfo.condition} 
-                className="w-full py-6 bg-blue-600 text-white text-2xl font-black rounded-[2rem] shadow-xl disabled:opacity-20 hover:scale-[1.02] active:scale-95 transition-all"
+                disabled={!patientInfo.age || !patientInfo.caregiverRelationship} 
+                className="w-full py-5 bg-blue-600 text-white text-xl font-black rounded-2xl shadow-xl disabled:opacity-20 transition-all"
               >
-                Scan Prescription
+                {labels.scanBtn}
               </button>
             </div>
           </div>
@@ -225,23 +298,27 @@ const MainDashboard: React.FC<{ user: User }> = ({ user }) => {
         {step === 'upload' && <PrescriptionUpload onUpload={handleDataReady} isProcessing={isProcessing} />}
 
         {step === 'dashboard' && analysis && (
-          <div className="grid grid-cols-1 lg:grid-cols-12 gap-6 animate-in fade-in duration-500">
-            {/* Dashboard: Left Column (Schedule - Compact) */}
+          <div className="grid grid-cols-1 lg:grid-cols-12 gap-6 animate-in fade-in duration-300">
             <div className="lg:col-span-8 space-y-6">
-              <div className="bg-white p-6 rounded-[2.5rem] border-4 border-slate-100 shadow-sm flex flex-col md:flex-row items-center justify-between gap-6">
-                <div>
-                  <h3 className="text-xl font-black text-slate-900">Patient Dashboard</h3>
-                  <p className="text-[10px] font-black text-slate-400 uppercase tracking-widest">Active Care Session</p>
+              {/* Timing Selector Header */}
+              <div className="bg-white p-5 rounded-[2.5rem] border-2 border-slate-100 shadow-sm flex flex-col md:flex-row items-center justify-between gap-4">
+                <div className="flex items-center gap-3">
+                  <div className="w-10 h-10 bg-blue-600 rounded-xl flex items-center justify-center text-xl">📋</div>
+                  <div>
+                    <h3 className="font-black text-slate-900 text-sm leading-tight">{labels.dashboard}</h3>
+                    <p className="text-[8px] font-black text-slate-400 uppercase tracking-widest">{labels.routine}</p>
+                  </div>
                 </div>
-                <div className="flex bg-slate-100 p-1 rounded-2xl border-2 border-slate-200">
+                <div className="flex bg-slate-100 p-0.5 rounded-xl border border-slate-200">
                   {Object.values(TimeOfDay).map(t => (
-                    <button key={t} onClick={() => setSimulatedTime(t)} className={`px-4 py-2 rounded-xl font-black text-[10px] transition-all ${simulatedTime === t ? 'bg-white shadow-md text-blue-600' : 'text-slate-400 hover:text-slate-600'}`}>
+                    <button key={t} onClick={() => setSimulatedTime(t)} className={`px-4 py-2 rounded-lg font-black text-[10px] transition-all ${simulatedTime === t ? 'bg-white shadow-sm text-blue-600' : 'text-slate-400 hover:text-slate-600'}`}>
                       {t.toUpperCase()}
                     </button>
                   ))}
                 </div>
               </div>
 
+              {/* Schedule Cards */}
               <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
                 {[TimeOfDay.MORNING, TimeOfDay.AFTERNOON, TimeOfDay.EVENING, TimeOfDay.NIGHT].map(time => (
                   <ScheduleCard 
@@ -253,37 +330,59 @@ const MainDashboard: React.FC<{ user: User }> = ({ user }) => {
                   />
                 ))}
               </div>
+
+              {/* INSPECTED BY SECTION - Displayed after schedule */}
+              <div className="bg-indigo-600 p-8 rounded-[3.5rem] text-white shadow-xl flex flex-col sm:flex-row items-center justify-between gap-6 relative overflow-hidden group">
+                <div className="absolute top-0 right-0 p-8 opacity-10 scale-150 rotate-12 transition-transform group-hover:rotate-0">
+                  <svg className="w-32 h-32" fill="currentColor" viewBox="0 0 24 24"><path d="M12 1L3 5v6c0 5.55 3.84 10.74 9 12 5.16-1.26 9-6.45 9-12V5l-9-4zm0 2.18l7 3.12v4.7c0 4.23-2.93 8.19-7 9.18-4.07-.99-7-4.95-7-9.18V6.3l7-3.12zM12 7c-1.66 0-3 1.34-3 3s1.34 3 3 3 3-1.34 3-3-1.34-3-3-3zm0 2c.55 0 1 .45 1 1s-.45 1-1 1-1-.45-1-1 .45-1 1-1z"/></svg>
+                </div>
+                <div className="flex items-center gap-6 relative z-10">
+                  <div className="w-16 h-16 bg-white/20 backdrop-blur-md rounded-3xl flex items-center justify-center text-3xl">👤</div>
+                  <div>
+                    <h4 className="text-xs font-black text-indigo-200 uppercase tracking-[0.2em] mb-1">{labels.inspectedBy}</h4>
+                    <p className="text-3xl font-black">{patientInfo.caregiverRelationship}</p>
+                  </div>
+                </div>
+                <div className="flex flex-col items-center sm:items-end gap-2 relative z-10">
+                  <div className="px-5 py-2 bg-white/10 backdrop-blur-xl rounded-2xl border border-white/20 text-center sm:text-right">
+                    <p className="text-[10px] font-black uppercase tracking-widest text-indigo-100">{labels.statusBadge}</p>
+                    <div className="flex items-center gap-2 mt-1">
+                      <span className="w-2.5 h-2.5 bg-emerald-400 rounded-full animate-pulse"></span>
+                      <span className="text-sm font-black">{labels.careCircle}</span>
+                    </div>
+                  </div>
+                </div>
+              </div>
             </div>
 
-            {/* Dashboard: Right Column (Controls & AI - Compact) */}
             <div className="lg:col-span-4 space-y-6">
-              <div className="p-8 bg-gradient-to-br from-blue-600 to-indigo-800 text-white rounded-[3rem] shadow-xl">
-                 <h4 className="text-lg font-black mb-4 flex items-center gap-2">
-                   <span className="text-2xl">🧠</span> AI Health Summary
+              <div className="p-7 bg-white rounded-[3rem] border-2 border-slate-100 shadow-lg">
+                 <h4 className="text-sm font-black mb-3 flex items-center gap-2 text-slate-800">
+                   <span className="text-xl">🧠</span> {labels.summaryTitle}
                  </h4>
-                 <p className="text-blue-50 text-base font-bold leading-relaxed mb-6 opacity-90">{analysis.summary}</p>
-                 <VoiceAssistant text={analysis.summary} />
+                 <p className="text-slate-600 text-xs font-bold leading-relaxed mb-6 italic opacity-90">{analysis.summary}</p>
+                 <VoiceAssistant text={analysis.summary} lang={patientInfo.language} />
               </div>
 
-              <div className="p-6 bg-white rounded-[2.5rem] border-4 border-slate-100 shadow-sm">
-                 <div className="flex items-center justify-between mb-4 px-2">
-                    <h4 className="font-black text-slate-900 text-sm">Guard Mode</h4>
-                    <div className="flex items-center gap-2">
-                      <span className={`w-2 h-2 rounded-full ${remindersArmed ? 'bg-emerald-500 animate-pulse' : 'bg-red-500'}`}></span>
-                      <span className="text-[9px] font-black text-slate-400 uppercase tracking-widest">{remindersArmed ? 'Armed' : 'Inactive'}</span>
+              <div className="p-6 bg-white rounded-[2.5rem] border-2 border-slate-100 shadow-sm">
+                 <div className="flex items-center justify-between mb-4 px-1">
+                    <h4 className="font-black text-slate-900 text-xs uppercase tracking-tight">{labels.safetyMode}</h4>
+                    <div className="flex items-center gap-1.5">
+                      <span className={`w-1.5 h-1.5 rounded-full ${remindersArmed ? 'bg-emerald-500 animate-pulse' : 'bg-red-500'}`}></span>
+                      <span className="text-[8px] font-black text-slate-400 uppercase tracking-widest">{remindersArmed ? labels.armed : labels.off}</span>
                     </div>
                  </div>
                  <button 
                   onClick={() => setRemindersArmed(!remindersArmed)}
-                  className={`w-full py-4 rounded-2xl font-black text-sm uppercase tracking-widest transition-all ${remindersArmed ? 'bg-emerald-50 text-emerald-600 border-2 border-emerald-100' : 'bg-blue-600 text-white shadow-lg shadow-blue-200'}`}
+                  className={`w-full py-4 rounded-xl font-black text-xs uppercase tracking-widest transition-all ${remindersArmed ? 'bg-emerald-50 text-emerald-600 border border-emerald-100' : 'bg-blue-600 text-white shadow-md'}`}
                  >
-                   {remindersArmed ? 'Stop Guard' : 'Start Voice Guard'}
+                   {remindersArmed ? labels.stopGuard : labels.startGuard}
                  </button>
                  <button 
                    onClick={() => triggerCall(analysis.medicines[0])}
-                   className="w-full mt-4 text-[10px] font-black text-slate-400 uppercase tracking-widest hover:text-blue-600 transition-colors"
+                   className="w-full mt-4 text-[9px] font-black text-slate-400 uppercase tracking-widest hover:text-blue-600 transition-colors"
                  >
-                   Test Emergency Call
+                   {labels.testCall}
                  </button>
               </div>
 
@@ -292,6 +391,7 @@ const MainDashboard: React.FC<{ user: User }> = ({ user }) => {
                 onSetReminders={setReminderPref} 
                 activePreference={reminderPref} 
                 patientInfo={patientInfo} 
+                onTriggerCall={() => triggerCall(analysis.medicines[0])}
               />
             </div>
           </div>
@@ -306,11 +406,10 @@ const LoginPage: React.FC<{ onLogin: (n: string) => void }> = ({ onLogin }) => {
   const navigate = useNavigate();
   return (
     <div className="min-h-screen bg-slate-50 flex items-center justify-center p-6">
-      <div className="max-w-sm w-full bg-white p-12 rounded-[3.5rem] shadow-2xl text-center border-4 border-blue-50">
-        <div className="w-16 h-16 bg-blue-600 rounded-2xl flex items-center justify-center text-white text-3xl font-black mx-auto mb-8 shadow-xl">S</div>
-        <h2 className="text-3xl font-black mb-8 tracking-tighter">Enter Care Room</h2>
-        <input type="text" className="w-full px-6 py-5 rounded-2xl bg-slate-50 border-2 border-slate-100 text-xl font-bold mb-6 outline-none focus:border-blue-600" placeholder="Full Name" value={name} onChange={e => setName(e.target.value)} />
-        <button onClick={() => { if(name) { onLogin(name); navigate('/app'); } }} className="w-full py-5 bg-blue-600 text-white text-xl font-black rounded-2xl shadow-xl hover:scale-105 active:scale-95 transition-all">Sign In</button>
+      <div className="max-w-xs w-full bg-white p-10 rounded-[3rem] shadow-2xl text-center border-2 border-blue-50">
+        <h2 className="text-2xl font-black mb-6 tracking-tighter">Enter Care Room</h2>
+        <input type="text" className="w-full px-5 py-4 rounded-xl bg-slate-50 border-2 border-slate-100 text-lg font-bold mb-4 outline-none focus:border-blue-600" placeholder="Name" value={name} onChange={e => setName(e.target.value)} />
+        <button onClick={() => { if(name) { onLogin(name); navigate('/app'); } }} className="w-full py-4 bg-blue-600 text-white font-black rounded-xl shadow-lg">Enter</button>
       </div>
     </div>
   );
@@ -330,11 +429,10 @@ const ApiKeyGuard: React.FC<{ children: React.ReactNode }> = ({ children }) => {
 
   if (hasKey === null) return null;
   if (!hasKey) return (
-    <div className="min-h-screen bg-slate-900 flex items-center justify-center p-6 text-center">
-      <div className="max-w-md bg-white p-14 rounded-[4rem]">
-        <h2 className="text-3xl font-black mb-6">Connect Healthcare AI</h2>
-        <button onClick={handleKey} className="w-full py-6 bg-blue-600 text-white rounded-3xl font-black text-xl shadow-xl">Activate API Key</button>
-        <p className="mt-6 text-slate-400 font-bold">This enables medical-grade handwriting analysis.</p>
+    <div className="min-h-screen bg-slate-900 flex items-center justify-center p-6">
+      <div className="max-w-xs bg-white p-10 rounded-[2.5rem] text-center">
+        <h2 className="text-xl font-black mb-4">Connect AI</h2>
+        <button onClick={handleKey} className="w-full py-4 bg-blue-600 text-white rounded-xl font-black">Activate</button>
       </div>
     </div>
   );
@@ -343,17 +441,17 @@ const ApiKeyGuard: React.FC<{ children: React.ReactNode }> = ({ children }) => {
 
 const App: React.FC = () => {
   const { user, login, logout, isAuthenticated } = useAuth();
+  const [patientInfo, setPatientInfo] = useState<PatientInfo>({ age: '', condition: '', language: 'en', caregiverRelationship: '' });
+  
   return (
     <Router>
       <ApiKeyGuard>
-        <div className="min-h-screen flex flex-col">
-          <Nav user={user} onLogout={logout} />
-          <Routes>
-            <Route path="/" element={<LandingPage isAuthenticated={isAuthenticated} />} />
-            <Route path="/login" element={<LoginPage onLogin={login} />} />
-            <Route path="/app" element={isAuthenticated ? <MainDashboard user={user!} /> : <Navigate to="/login" />} />
-          </Routes>
-        </div>
+        <Nav user={user} onLogout={logout} lang={patientInfo.language} />
+        <Routes>
+          <Route path="/" element={<LandingPage isAuthenticated={isAuthenticated} />} />
+          <Route path="/login" element={<LoginPage onLogin={login} />} />
+          <Route path="/app" element={isAuthenticated ? <MainDashboard user={user!} patientInfo={patientInfo} setPatientInfo={setPatientInfo} /> : <Navigate to="/login" />} />
+        </Routes>
       </ApiKeyGuard>
     </Router>
   );
