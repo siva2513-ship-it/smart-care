@@ -3,13 +3,14 @@ import { GoogleGenAI, Type } from "@google/genai";
 import { PrescriptionAnalysis, Medicine, PatientInfo } from "../types";
 
 export class GeminiService {
-  private ai: GoogleGenAI;
-
-  constructor() {
-    this.ai = new GoogleGenAI({ apiKey: process.env.API_KEY });
+  private getClient(): GoogleGenAI {
+    // Always create a new instance right before the call to ensure 
+    // it uses the most up-to-date API key from the environment.
+    return new GoogleGenAI({ apiKey: process.env.API_KEY });
   }
 
   async analyzePrescription(base64Image: string, patientInfo?: PatientInfo): Promise<PrescriptionAnalysis> {
+    const ai = this.getClient();
     const personaPrompt = this.getPersonaInstruction(patientInfo);
     
     const systemInstruction = `YOU ARE A WORLD-CLASS CLINICAL PHARMACIST AND MEDICAL OCR EXPERT.
@@ -42,7 +43,7 @@ export class GeminiService {
     ${personaPrompt}`;
 
     try {
-      const response = await this.ai.models.generateContent({
+      const response = await ai.models.generateContent({
         model: 'gemini-3-flash-preview',
         contents: [
           {
@@ -102,13 +103,14 @@ export class GeminiService {
   }
 
   async askQuestion(query: string, medicines: Medicine[], patientInfo?: PatientInfo): Promise<string> {
+    const ai = this.getClient();
     const prompt = `Assistant for patient with ${patientInfo?.condition}. Age: ${patientInfo?.age}. 
     Meds: ${JSON.stringify(medicines)}. 
     Question: "${query}". 
     Reply warmly, simply, and briefly (2 sentences max).`;
 
     try {
-      const response = await this.ai.models.generateContent({
+      const response = await ai.models.generateContent({
         model: 'gemini-3-flash-preview',
         contents: [{ parts: [{ text: prompt }] }],
       });
