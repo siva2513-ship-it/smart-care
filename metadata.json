@@ -1,0 +1,8 @@
+{
+  "name": "Smart Care Reminder",
+  "description": "An AI-powered healthcare accessibility platform that transforms complex doctor prescriptions into simple, voice-guided reminders for the elderly and memory-impaired.",
+  "requestFramePermissions": [
+    "camera",
+    "microphone"
+  ]
+}
