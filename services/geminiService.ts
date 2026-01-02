@@ -1,11 +1,9 @@
-
 import { GoogleGenAI, Type } from "@google/genai";
 import { PrescriptionAnalysis, Medicine, PatientInfo } from "../types";
 
 export class GeminiService {
   private getClient(): GoogleGenAI {
-    // Always create a new instance right before the call to ensure 
-    // it uses the most up-to-date API key from the environment.
+    // Re-instantiate to pick up the selected API Key from the session dialog.
     return new GoogleGenAI({ apiKey: process.env.API_KEY });
   }
 
@@ -13,6 +11,7 @@ export class GeminiService {
     const ai = this.getClient();
     const personaPrompt = this.getPersonaInstruction(patientInfo);
     
+    // Detailed system instruction for the AI pharmacist persona
     const systemInstruction = `YOU ARE A WORLD-CLASS CLINICAL PHARMACIST AND MEDICAL OCR EXPERT.
     
     GOAL: Extract medicine details from an image for an elderly patient.
@@ -44,11 +43,10 @@ export class GeminiService {
 
     try {
       const response = await ai.models.generateContent({
-        model: 'gemini-3-flash-preview',
+        model: 'gemini-3-pro-preview', // High accuracy multimodal model for complex OCR
         contents: [
           {
             parts: [
-              { text: systemInstruction },
               {
                 inlineData: {
                   mimeType: 'image/jpeg',
@@ -59,6 +57,8 @@ export class GeminiService {
           }
         ],
         config: {
+          systemInstruction: systemInstruction,
+          thinkingConfig: { thinkingBudget: 4000 }, // Added thinking budget for complex extraction
           responseMimeType: "application/json",
           responseSchema: {
             type: Type.OBJECT,
@@ -104,15 +104,18 @@ export class GeminiService {
 
   async askQuestion(query: string, medicines: Medicine[], patientInfo?: PatientInfo): Promise<string> {
     const ai = this.getClient();
-    const prompt = `Assistant for patient with ${patientInfo?.condition}. Age: ${patientInfo?.age}. 
-    Meds: ${JSON.stringify(medicines)}. 
-    Question: "${query}". 
-    Reply warmly, simply, and briefly (2 sentences max).`;
+    // System instruction defining the chatbot's supportive persona and context
+    const systemInstruction = `Assistant for patient with ${patientInfo?.condition}. Age: ${patientInfo?.age}. 
+    Known medicines: ${JSON.stringify(medicines)}. 
+    Reply warmly, simply, and briefly (2 sentences max). Always advise consulting a professional for health changes.`;
 
     try {
       const response = await ai.models.generateContent({
-        model: 'gemini-3-flash-preview',
-        contents: [{ parts: [{ text: prompt }] }],
+        model: 'gemini-3-flash-preview', // Flash is sufficient for simple Q&A
+        contents: [{ parts: [{ text: query }] }],
+        config: {
+          systemInstruction: systemInstruction
+        }
       });
       return response.text || "I'm here to help. What else can I check for you?";
     } catch (error) {
@@ -122,7 +125,7 @@ export class GeminiService {
 
   private getPersonaInstruction(info?: PatientInfo): string {
     if (info?.condition.toLowerCase().includes('alzheimer')) {
-      return "PATIENT HAS MEMORY LOSS. Use repetitive language. Be extremely patient.";
+      return "PATIENT HAS MEMORY LOSS. Use repetitive language. Be extremely patient. Keep instructions singular and sequential.";
     }
     return "Patient is elderly. Use clear, large font concepts and warm tones.";
   }
