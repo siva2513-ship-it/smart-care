@@ -3,8 +3,24 @@ import { GoogleGenAI, Type, Chat } from "@google/genai";
 import { PrescriptionAnalysis, Medicine, PatientInfo, ChatMessage, Language } from "../types";
 
 export class GeminiService {
-  private getClient(): GoogleGenAI {
-    return new GoogleGenAI({ apiKey: process.env.API_KEY });
+  /**
+   * Helper to handle API errors, specifically the "Requested entity was not found" 
+   * which indicates an issue with the API key session.
+   */
+  // Added : Promise<never> to ensure the compiler knows this function throws and satisfies return type checks
+  private async handleApiError(error: any): Promise<never> {
+    console.error("Gemini API Error:", error);
+    const errorMessage = error?.message || String(error);
+    
+    // Check for the specific error that requires re-selection of API key
+    if (errorMessage.includes("Requested entity was not found") && typeof window !== 'undefined') {
+      const win = window as any;
+      if (win.aistudio && typeof win.aistudio.openSelectKey === 'function') {
+        console.warn("API Key session lost. Re-prompting user.");
+        await win.aistudio.openSelectKey();
+      }
+    }
+    throw error;
   }
 
   private getLanguageName(lang: Language): string {
@@ -16,57 +32,49 @@ export class GeminiService {
   }
 
   async analyzePrescription(base64Image: string, patientInfo: PatientInfo): Promise<PrescriptionAnalysis> {
-    const ai = this.getClient();
+    // Always create a fresh instance per call to ensure latest API key is used
+    const ai = new GoogleGenAI({ apiKey: process.env.API_KEY });
     const langName = this.getLanguageName(patientInfo.language);
     
-    // Enhanced system instruction for superior OCR and Clinical Logic
-    const systemInstruction = `YOU ARE AN ELITE CLINICAL PHARMACIST SPECIALIZING IN HANDWRITING RECOGNITION (OCR) AND GERIATRIC CARE.
-
-    PRIMARY MISSION: Extract medication data from prescription images with 100% safety accuracy.
-
-    OCR HANDWRITING STRATEGY:
-    1. LINGUISTIC MAPPING: Doctors often use Latin abbreviations. Map them:
-       - OD/QD -> Once Daily
-       - BID/BD -> Twice Daily
-       - TID/TD -> Thrice Daily
-       - QID -> Four times Daily
+    const systemInstruction = `YOU ARE A CLINICAL PHARMACY SPECIALIST AND OCR EXPERT.
+    
+    TASK: Extract all medical data from the provided image.
+    
+    ACCURACY PROTOCOL:
+    1. CULTURAL CONTEXT: Use patient data (Age: ${patientInfo.age}, Condition: ${patientInfo.condition}) to disambiguate handwriting.
+    2. ABBREVIATION EXPANSION:
+       - OD -> Once Daily
+       - BD/BID -> Twice Daily
+       - TID -> Thrice Daily
        - AC -> Before Food
        - PC -> After Food
-       - HS -> At Bedtime
-    2. VISUAL DISAMBIGUATION: If a letter is ambiguous (e.g., 'n' vs 'm', '1' vs 'l'), use medical context (e.g., 'Amlodipine' is common, 'Anlodipine' is not).
-    3. DOSAGE VALIDATION: Check if extracted dosage (e.g., 500mg) is standard for that drug.
+    3. CLINICAL CROSS-REFERENCE: If a word is 70% similar to a known drug name (e.g., Metformin, Amlodipine, Paracetamol), assume the standard medical spelling.
+    4. LANGUAGE: Translate all patient instructions into simple, conversational ${langName}.
 
-    PATIENT CONTEXT:
-    - Age: ${patientInfo.age}
-    - Known Conditions: ${patientInfo.condition}
-    - Target Language: ${langName}
-
-    OUTPUT SCHEMA REQUIREMENTS:
-    - medicines: List of objects.
-    - timing: EXACTLY one or more of ["Morning", "Afternoon", "Evening", "Night"].
-    - color: A visual pill color for elderly identification (e.g., "white", "blue", "red").
-    - instructions: Simple, actionable steps in ${langName}.
-    - summary: A warm, empathetic overview of the day's health plan in ${langName}.`;
+    OUTPUT SCHEMA:
+    - medicines: List of detected drugs.
+    - timing: MUST be one or more of ["Morning", "Afternoon", "Evening", "Night"].
+    - color: Best visual color description for pill identification.
+    - drugClass: Type of drug (e.g., Antibiotic, Painkiller).`;
 
     try {
+      // Corrected contents structure to match SDK examples: { parts: [...] }
       const response = await ai.models.generateContent({
         model: 'gemini-3-pro-preview',
-        contents: [
-          {
-            parts: [
-              {
-                inlineData: {
-                  mimeType: 'image/jpeg',
-                  data: base64Image.split(',')[1] || base64Image
-                }
-              },
-              { text: `Perform deep OCR on this prescription. Identify all medicines, dosages, and frequencies. Translate instructions to ${langName}. Respond in JSON.` }
-            ]
-          }
-        ],
+        contents: {
+          parts: [
+            {
+              inlineData: {
+                mimeType: 'image/jpeg',
+                data: base64Image.split(',')[1] || base64Image
+              }
+            },
+            { text: `Extract all medicines from this prescription. Return JSON for a ${langName} speaker.` }
+          ]
+        },
         config: {
           systemInstruction: systemInstruction,
-          thinkingConfig: { thinkingBudget: 8000 }, // Increased budget for complex handwriting
+          thinkingConfig: { thinkingBudget: 8000 },
           responseMimeType: "application/json",
           responseSchema: {
             type: Type.OBJECT,
@@ -76,26 +84,23 @@ export class GeminiService {
                 items: {
                   type: Type.OBJECT,
                   properties: {
-                    name: { type: Type.STRING, description: "Generic or Brand name in English" },
-                    dosage: { type: Type.STRING, description: "Strength, e.g., 500mg or 5ml" },
-                    timing: {
-                      type: Type.ARRAY,
-                      items: { type: Type.STRING }
-                    },
-                    instructions: { type: Type.STRING, description: `Simple instructions in ${langName}` },
-                    color: { type: Type.STRING, description: "Suggested pill color for UI" },
+                    name: { type: Type.STRING },
+                    dosage: { type: Type.STRING },
+                    timing: { type: Type.ARRAY, items: { type: Type.STRING } },
+                    instructions: { type: Type.STRING },
+                    color: { type: Type.STRING },
                     drugClass: { type: Type.STRING },
                   },
                   required: ["name", "dosage", "timing", "instructions", "color"]
                 }
               },
-              summary: { type: Type.STRING, description: `Warm summary in ${langName}` }
+              summary: { type: Type.STRING }
             }
           }
         }
       });
 
-      const text = response.text || '{"medicines": [], "summary": "Error"}';
+      const text = response.text || '{"medicines": [], "summary": "Error reading image"}';
       const result = JSON.parse(text);
       
       return {
@@ -107,41 +112,41 @@ export class GeminiService {
         }))
       };
     } catch (error) {
-      console.error("Analysis Error:", error);
-      throw error;
+      return this.handleApiError(error);
     }
   }
 
   async askQuestion(query: string, medicines: Medicine[], history: ChatMessage[], patientInfo: PatientInfo): Promise<{ text: string; sources?: any[] }> {
-    const ai = this.getClient();
+    const ai = new GoogleGenAI({ apiKey: process.env.API_KEY });
     const langName = this.getLanguageName(patientInfo.language);
     
-    // Injecting full medical context into the chat session
-    const chat = ai.chats.create({
-      model: 'gemini-3-flash-preview',
-      config: {
-        tools: [{ googleSearch: {} }],
-        systemInstruction: `You are a helpful and extremely safe Medical AI Assistant.
-        PATIENT PROFILE: Age ${patientInfo.age}, Condition: ${patientInfo.condition}.
-        ACTIVE MEDICATIONS: ${medicines.map(m => `${m.name} (${m.dosage})`).join(', ')}.
-        LANGUAGE: Always respond in ${langName.toUpperCase()}.
-        
-        CRITICAL SAFETY RULES:
-        1. If a user asks about changing dosage, tell them to CONSULT THEIR DOCTOR immediately.
-        2. Use the 'googleSearch' tool to verify side effects or interactions for the specific meds listed above.
-        3. Be empathetic but professional. Use simple analogies for medical terms.
-        4. If the language is Hindi or Telugu, ensure the grammar is natural and respectful for an elderly user.`
-      }
-    });
+    try {
+      const chat = ai.chats.create({
+        model: 'gemini-3-flash-preview',
+        config: {
+          tools: [{ googleSearch: {} }],
+          systemInstruction: `You are a medical assistant for an elderly patient (${patientInfo.age} years old).
+          
+          CURRENT MEDICATION LIST:
+          ${medicines.map(m => `- ${m.name} (${m.dosage}): ${m.instructions}`).join('\n')}
+          
+          GUIDELINES:
+          1. Use Google Search to verify contraindications and side effects.
+          2. Respond strictly in ${langName}.
+          3. If the user reports a serious symptom (chest pain, shortness of breath), advise them to call emergency services immediately.
+          4. Keep answers brief and easy to understand for seniors.`
+        }
+      });
 
-    // Format history for the chat API
-    // Note: official Chat.sendMessage handles turn management
-    const response = await chat.sendMessage({ message: query });
+      const response = await chat.sendMessage({ message: query });
 
-    return {
-      text: response.text || "...",
-      sources: response.candidates?.[0]?.groundingMetadata?.groundingChunks || []
-    };
+      return {
+        text: response.text || "...",
+        sources: response.candidates?.[0]?.groundingMetadata?.groundingChunks || []
+      };
+    } catch (error) {
+      return this.handleApiError(error);
+    }
   }
 }
 

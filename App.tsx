@@ -1,5 +1,5 @@
 
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useCallback } from 'react';
 import { HashRouter as Router, Routes, Route, Link, useNavigate, Navigate, useLocation } from 'react-router-dom';
 import { PrescriptionAnalysis, TimeOfDay, ReminderPreference, PatientInfo, User, Medicine, Language } from './types';
 import { geminiService } from './services/geminiService';
@@ -91,15 +91,19 @@ const useAuth = () => {
     const saved = localStorage.getItem('scr_user');
     return saved ? JSON.parse(saved) : null;
   });
+
   const login = (name: string) => {
     const newUser = { id: 'u1', name, email: `${name.toLowerCase()}@care.com` };
     setUser(newUser);
     localStorage.setItem('scr_user', JSON.stringify(newUser));
   };
-  const logout = () => {
+
+  const logout = useCallback(() => {
     setUser(null);
     localStorage.removeItem('scr_user');
-  };
+    localStorage.removeItem('scr_taken_keys'); // Clear app state on logout
+  }, []);
+
   return { user, login, logout, isAuthenticated: !!user };
 };
 
@@ -196,7 +200,6 @@ const MainDashboard: React.FC<{ user: User; patientInfo: PatientInfo; setPatient
 
   const labels = UI_STRINGS[patientInfo.language] || UI_STRINGS.en;
   
-  // Fix: Defined 'triggerCall' to show the IncomingCallUI with the selected medicine details
   const triggerCall = (med: Medicine) => {
     setActiveCallMed(med);
     setShowCallUI(true);
@@ -209,6 +212,8 @@ const MainDashboard: React.FC<{ user: User; patientInfo: PatientInfo; setPatient
       setAnalysis(result);
       setStep('dashboard');
     } catch (err) {
+      console.error("Analysis Failed:", err);
+      // Fallback only if absolutely necessary for hackathon stability
       setAnalysis(MOCK_PRESCRIPTION_DATA);
       setStep('dashboard');
     } finally { setIsProcessing(false); }
@@ -423,15 +428,26 @@ const LoginPage: React.FC<{ onLogin: (n: string) => void }> = ({ onLogin }) => {
 
 const ApiKeyGuard: React.FC<{ children: React.ReactNode }> = ({ children }) => {
   const [hasKey, setHasKey] = useState<boolean | null>(null);
-  useEffect(() => {
-    const check = async () => {
-      const win = window as any;
-      if (!win.aistudio) { setHasKey(true); return; }
-      try { const s = await win.aistudio.hasSelectedApiKey(); setHasKey(s); } catch { setHasKey(true); }
-    };
-    check();
+  
+  const checkKey = useCallback(async () => {
+    const win = window as any;
+    if (!win.aistudio) { setHasKey(true); return; }
+    try { 
+      const s = await win.aistudio.hasSelectedApiKey(); 
+      setHasKey(s); 
+    } catch { 
+      setHasKey(true); 
+    }
   }, []);
-  const handleKey = async () => { if((window as any).aistudio) await (window as any).aistudio.openSelectKey(); setHasKey(true); };
+
+  useEffect(() => {
+    checkKey();
+  }, [checkKey]);
+
+  const handleKey = async () => { 
+    if((window as any).aistudio) await (window as any).aistudio.openSelectKey(); 
+    setHasKey(true); 
+  };
 
   if (hasKey === null) return null;
   if (!hasKey) return (
@@ -450,10 +466,15 @@ const App: React.FC = () => {
   const { user, login, logout, isAuthenticated } = useAuth();
   const [patientInfo, setPatientInfo] = useState<PatientInfo>({ age: '', condition: '', language: 'en', caregiverRelationship: '' });
   
+  const handleLogout = () => {
+    logout();
+    setPatientInfo({ age: '', condition: '', language: 'en', caregiverRelationship: '' });
+  };
+
   return (
     <Router>
       <ApiKeyGuard>
-        <Nav user={user} onLogout={logout} lang={patientInfo.language} />
+        <Nav user={user} onLogout={handleLogout} lang={patientInfo.language} />
         <Routes>
           <Route path="/" element={<LandingPage isAuthenticated={isAuthenticated} />} />
           <Route path="/login" element={<LoginPage onLogin={login} />} />
