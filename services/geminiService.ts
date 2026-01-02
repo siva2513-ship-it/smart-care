@@ -1,6 +1,6 @@
 
 import { GoogleGenAI, Type } from "@google/genai";
-import { PrescriptionAnalysis, Medicine, PatientInfo } from "../types";
+import { PrescriptionAnalysis, Medicine, PatientInfo, ChatMessage } from "../types";
 
 export class GeminiService {
   private getClient(): GoogleGenAI {
@@ -30,7 +30,7 @@ export class GeminiService {
 
     try {
       const response = await ai.models.generateContent({
-        model: 'gemini-3-pro-preview',
+        model: 'gemini-3-flash-preview',
         contents: [
           {
             parts: [
@@ -46,7 +46,7 @@ export class GeminiService {
         ],
         config: {
           systemInstruction: systemInstruction,
-          thinkingConfig: { thinkingBudget: 32768 }, // MAX BUDGET for highest accuracy
+          thinkingConfig: { thinkingBudget: 0 },
           responseMimeType: "application/json",
           responseSchema: {
             type: Type.OBJECT,
@@ -131,18 +131,40 @@ export class GeminiService {
     };
   }
 
-  async askQuestion(query: string, medicines: Medicine[], patientInfo?: PatientInfo): Promise<{ text: string; sources?: any[] }> {
+  async askQuestion(query: string, medicines: Medicine[], history: ChatMessage[], patientInfo?: PatientInfo): Promise<{ text: string; sources?: any[] }> {
     const ai = this.getClient();
+    
+    // Map internal history to Gemini format
+    const contents = history.map(msg => ({
+      role: msg.sender === 'user' ? 'user' : 'model',
+      parts: [{ text: msg.text }]
+    }));
+
+    // Add current query with context
+    contents.push({
+      role: 'user',
+      parts: [{ text: `User Query: ${query}\nPatient Context: ${patientInfo?.condition || 'Unknown'}\nActive Meds: ${JSON.stringify(medicines)}` }]
+    });
+
     const response = await ai.models.generateContent({
       model: 'gemini-3-flash-preview',
-      contents: `User Query: ${query}\nPatient Context: ${patientInfo?.condition}\nActive Meds: ${JSON.stringify(medicines)}`,
+      contents: contents as any,
       config: {
         tools: [{ googleSearch: {} }],
-        systemInstruction: `You are a helpful pharmacist assistant. 
-        1. Always verify safety information using Google Search.
-        2. Keep language simple for seniors.
-        3. MANDATORY: End every response with a symptom-check question.
-        4. If the user mentions pain, ask where it hurts.`
+        systemInstruction: `YOU ARE A HIGHLY CAUTIOUS PHARMACEUTICAL CARE ASSISTANT.
+
+CLINICAL INTERROGATION PROTOCOL:
+1. GATHER CONTEXT: If a user asks about symptoms, pain, or medication side effects, you MUST NOT give direct advice or medical reassurance immediately.
+2. ASK CLARIFYING QUESTIONS FIRST: 
+   - If they mention "pain", you MUST respond: "I'm sorry you're feeling pain. Where exactly does it hurt, and how long has it been bothering you?"
+   - If they mention a "side effect" or feeling "weird/unwell", ask: "When did you first notice this, and are you feeling any other symptoms like dizziness, nausea, or a rash?"
+   - If they ask "Can I take [X]?" for a new drug, ask: "What specific symptoms are you hoping to treat with [X]?"
+
+3. ONCE CONTEXT IS GIVEN: Only after the user provides these details should you use Google Search to check interactions and give a cautious, standard medical answer.
+4. SAFETY LIMITS: Always advise contacting a professional for new or worsening symptoms. If symptoms are severe (chest pain, difficulty breathing), tell them to call emergency services immediately.
+5. SIMPLE LANGUAGE: Use clear, slow-paced language suitable for seniors. Keep responses concise.
+
+Your primary goal is to be a thorough gatekeeper. Always prioritize asking for missing details before providing a final recommendation.`
       }
     });
 

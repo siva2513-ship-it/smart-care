@@ -28,7 +28,7 @@ const PrescriptionUpload: React.FC<PrescriptionUploadProps> = ({ onUpload, isPro
       setLoadingStage(0);
       interval = setInterval(() => {
         setLoadingStage(prev => (prev + 1) % stages.length);
-      }, 2500);
+      }, 1000); // SPEED UP LOADING VISUALIZATION (WAS 2500ms)
     }
     return () => clearInterval(interval);
   }, [isProcessing]);

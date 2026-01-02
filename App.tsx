@@ -1,7 +1,7 @@
 
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useCallback } from 'react';
 import { HashRouter as Router, Routes, Route, Link, useNavigate, Navigate, useLocation } from 'react-router-dom';
-import { PrescriptionAnalysis, TimeOfDay, ReminderPreference, PatientInfo, User } from './types';
+import { PrescriptionAnalysis, TimeOfDay, ReminderPreference, PatientInfo, User, Medicine } from './types';
 import { geminiService } from './services/geminiService';
 import { MOCK_PRESCRIPTION_DATA } from './constants';
 import PrescriptionUpload from './components/PrescriptionUpload';
@@ -10,82 +10,8 @@ import VoiceAssistant from './components/VoiceAssistant';
 import SmartChatbot from './components/SmartChatbot';
 import IncomingCallUI from './components/IncomingCallUI';
 
-// --- HOME PAGE COMPONENTS ---
+// --- AUTH & PERSISTENCE ---
 
-const GlobalAlerts: React.FC = () => {
-  const [alerts, setAlerts] = useState<{ text: string; sources: any[] } | null>(null);
-
-  useEffect(() => {
-    geminiService.getGlobalHealthAlerts().then(setAlerts).catch(console.error);
-  }, []);
-
-  return (
-    <div className="bg-red-50 p-10 rounded-[3rem] border-4 border-red-100 shadow-xl relative overflow-hidden group h-full">
-      <div className="absolute -top-4 -right-4 text-red-100 text-9xl font-black opacity-50 group-hover:rotate-12 transition-transform">⚠️</div>
-      <div className="relative z-10">
-        <div className="flex items-center gap-4 mb-6">
-          <div className="w-12 h-12 bg-red-600 rounded-xl flex items-center justify-center text-white text-2xl animate-pulse">📡</div>
-          <h3 className="text-3xl font-black text-red-900">Live Safety Pulse</h3>
-        </div>
-        {!alerts ? (
-          <div className="space-y-4">
-            <div className="h-6 bg-red-100 rounded-full w-3/4 animate-pulse"></div>
-            <div className="h-6 bg-red-100 rounded-full w-1/2 animate-pulse"></div>
-          </div>
-        ) : (
-          <>
-            <div className="text-red-800 font-bold text-xl leading-relaxed mb-8 whitespace-pre-wrap">{alerts.text}</div>
-            <div className="flex flex-wrap gap-3">
-              {alerts.sources.map((s, i) => s.web && (
-                <a key={i} href={s.web.uri} target="_blank" rel="noreferrer" className="text-[10px] font-black uppercase bg-white/50 text-red-600 px-3 py-1 rounded-lg border border-red-200 truncate max-w-[150px]">
-                  {s.web.title}
-                </a>
-              ))}
-            </div>
-          </>
-        )}
-      </div>
-    </div>
-  );
-};
-
-const LocalSupport: React.FC = () => {
-  const [support, setSupport] = useState<{ text: string; sources: any[] } | null>(null);
-
-  useEffect(() => {
-    navigator.geolocation.getCurrentPosition((pos) => {
-      geminiService.getNearbySupport(pos.coords.latitude, pos.coords.longitude)
-        .then(setSupport).catch(console.error);
-    });
-  }, []);
-
-  return (
-    <div className="bg-blue-50 p-10 rounded-[3rem] border-4 border-blue-100 shadow-xl relative overflow-hidden group h-full">
-      <div className="relative z-10">
-        <div className="flex items-center gap-4 mb-6">
-          <div className="w-12 h-12 bg-blue-600 rounded-xl flex items-center justify-center text-white text-2xl">📍</div>
-          <h3 className="text-3xl font-black text-blue-900 tracking-tight">Nearby Pharmacies</h3>
-        </div>
-        {!support ? (
-          <p className="text-blue-400 font-black animate-pulse">Locating local support...</p>
-        ) : (
-          <>
-            <p className="text-blue-800 font-bold text-lg mb-8">{support.text}</p>
-            <div className="space-y-4">
-              {support.sources.map((s, i) => s.maps && (
-                <a key={i} href={s.maps.uri} target="_blank" rel="noreferrer" className="block p-5 bg-white rounded-2xl border-2 border-blue-200 font-black text-blue-700 hover:scale-[1.02] transition-all shadow-sm">
-                  Visit {s.maps.title} →
-                </a>
-              ))}
-            </div>
-          </>
-        )}
-      </div>
-    </div>
-  );
-};
-
-// --- AUTH MOCK ---
 const useAuth = () => {
   const [user, setUser] = useState<User | null>(() => {
     const saved = localStorage.getItem('scr_user');
@@ -105,28 +31,34 @@ const useAuth = () => {
 
 const Nav: React.FC<{ user: User | null; onLogout: () => void }> = ({ user, onLogout }) => {
   const location = useLocation();
+  const navigate = useNavigate();
   const isHome = location.pathname === '/';
 
   return (
     <nav className="sticky top-0 z-50 glass-effect border-b border-slate-200">
-      <div className="container mx-auto px-6 h-20 flex items-center justify-between">
+      <div className="container mx-auto px-6 h-16 md:h-20 flex items-center justify-between">
         <div className="flex items-center gap-6">
           <Link to="/" className="flex items-center gap-3 group">
-            <div className="w-10 h-10 bg-blue-600 rounded-xl flex items-center justify-center text-white font-black text-xl shadow-lg group-hover:rotate-12 transition-transform">S</div>
-            <span className="text-2xl font-black text-slate-800 tracking-tighter">SmartCare</span>
+            <div className="w-8 h-8 md:w-10 md:h-10 bg-blue-600 rounded-xl flex items-center justify-center text-white font-black text-xl shadow-lg group-hover:rotate-12 transition-transform">S</div>
+            <span className="text-xl md:text-2xl font-black text-slate-800 tracking-tighter">SmartCare</span>
           </Link>
-          <Link to="/" className={`px-4 py-2 rounded-xl font-black text-sm flex items-center gap-2 transition-all ${isHome ? 'bg-blue-600 text-white shadow-md' : 'text-slate-500 hover:bg-slate-100'}`}>
+          <Link to="/" className={`px-3 py-1.5 md:px-4 md:py-2 rounded-xl font-black text-xs md:text-sm flex items-center gap-2 transition-all ${isHome ? 'bg-blue-600 text-white shadow-md' : 'text-slate-500 hover:bg-slate-100'}`}>
             <span className="text-lg">🏠</span> Home
           </Link>
         </div>
-        <div className="flex items-center gap-8">
+        <div className="flex items-center gap-4">
           {user ? (
-            <div className="flex items-center gap-4 pl-8 border-l border-slate-200">
-              <p className="text-sm font-black text-slate-900">{user.name}</p>
-              <button onClick={onLogout} className="px-4 py-2 bg-slate-100 text-slate-600 font-black text-xs rounded-lg hover:bg-red-50 hover:text-red-600 transition-all">Log Out</button>
+            <div className="flex items-center gap-4 pl-4 md:pl-8 border-l border-slate-200">
+              <p className="text-sm font-black text-slate-900 hidden md:block">{user.name}</p>
+              <button onClick={onLogout} className="px-3 py-1.5 md:px-4 md:py-2 bg-slate-100 text-slate-600 font-black text-[10px] md:text-xs rounded-lg hover:bg-red-50 hover:text-red-600 transition-all">Log Out</button>
             </div>
           ) : (
-            <Link to="/login" className="px-6 py-2 bg-blue-600 text-white font-black rounded-xl hover:bg-blue-700 shadow-md text-sm">Sign In</Link>
+            <button 
+              onClick={() => navigate('/login')}
+              className="px-4 py-1.5 md:px-6 md:py-2 bg-blue-600 text-white font-black text-xs md:text-sm rounded-xl hover:bg-blue-700 shadow-md transition-all flex items-center gap-2"
+            >
+              <span>👤</span> Sign In
+            </button>
           )}
         </div>
       </div>
@@ -134,60 +66,83 @@ const Nav: React.FC<{ user: User | null; onLogout: () => void }> = ({ user, onLo
   );
 };
 
-const LandingPage: React.FC = () => {
+// --- CORE APPLICATION ---
+
+const LandingPage: React.FC<{ isAuthenticated: boolean }> = ({ isAuthenticated }) => {
   const navigate = useNavigate();
   return (
     <div className="bg-white min-h-screen">
-      <section className="container mx-auto px-6 pt-24 pb-20 flex flex-col items-center text-center">
-        <h1 className="text-7xl md:text-[9rem] font-black text-slate-900 leading-[0.85] tracking-tighter mb-10">
+      <section className="container mx-auto px-6 pt-16 md:pt-24 pb-12 flex flex-col items-center text-center">
+        <div className="w-20 h-20 md:w-24 md:h-24 bg-blue-600 rounded-[2rem] flex items-center justify-center text-white text-5xl font-black mb-8 md:mb-12 shadow-2xl animate-bounce">S</div>
+        <h1 className="text-5xl md:text-7xl lg:text-[8rem] font-black text-slate-900 leading-[0.9] tracking-tighter mb-8">
           Clear Care.<br/>
           <span className="text-blue-600 italic">No Guesswork.</span>
         </h1>
-        <p className="text-2xl md:text-3xl text-slate-500 mb-12 max-w-3xl font-medium leading-relaxed">
-          The only AI that turns confusing medical handwriting into <span className="text-slate-900 font-bold underline decoration-blue-500 decoration-8">voice-guided safety</span> for your loved ones.
+        <p className="text-xl md:text-2xl text-slate-500 mb-10 max-w-2xl font-medium leading-relaxed">
+          The only AI reminder that <span className="text-slate-900 font-bold underline decoration-blue-500 decoration-8 text-nowrap">calls the patient</span> when it is time for medicine.
         </p>
-        <button 
-          onClick={() => navigate('/app')}
-          className="px-16 py-8 bg-blue-600 text-white text-3xl font-black rounded-[2.5rem] shadow-3xl hover:scale-105 active:scale-95 transition-all mb-20"
-        >
-          Start Care Session
-        </button>
-
-        <div className="grid grid-cols-1 lg:grid-cols-2 gap-8 w-full mb-32 max-w-6xl">
-          <GlobalAlerts />
-          <LocalSupport />
+        <div className="flex flex-col md:flex-row gap-4 md:gap-6 mb-16 md:mb-24">
+          <button 
+            onClick={() => navigate('/app')}
+            className="px-10 py-6 md:px-16 md:py-8 bg-blue-600 text-white text-xl md:text-3xl font-black rounded-[2.5rem] shadow-3xl hover:scale-105 active:scale-95 transition-all"
+          >
+            {isAuthenticated ? 'Go to Dashboard' : 'Begin Care Session'}
+          </button>
+          {!isAuthenticated && (
+            <button 
+              onClick={() => navigate('/login')}
+              className="px-10 py-6 md:px-12 md:py-8 bg-slate-100 text-slate-800 text-xl md:text-2xl font-black rounded-[2.5rem] hover:bg-slate-200 transition-all"
+            >
+              Sign In to Account
+            </button>
+          )}
         </div>
+      </section>
 
-        <div className="w-full max-w-6xl">
-          <div className="text-center mb-20">
-            <h2 className="text-5xl font-black text-slate-900 mb-4">How It Works</h2>
-            <div className="h-2 w-24 bg-blue-600 mx-auto rounded-full"></div>
+      {/* HOW IT WORKS SECTION */}
+      <section className="bg-slate-50 py-20 md:py-32">
+        <div className="container mx-auto px-6">
+          <div className="text-center mb-16 md:mb-20">
+            <h2 className="text-4xl md:text-6xl font-black text-slate-900 tracking-tighter mb-4">Simple Steps to Safety</h2>
+            <p className="text-xl text-slate-500 font-bold">Designed for seniors, built with medical-grade AI.</p>
           </div>
-          <div className="grid grid-cols-1 md:grid-cols-3 gap-8">
+          
+          <div className="grid grid-cols-1 md:grid-cols-3 gap-8 md:gap-12">
             {[
-              { step: "01", title: "Scan & OCR", desc: "Snap a photo of any doctor's handwritten note. Gemini Pro AI deciphers the handwriting instantly.", icon: "📸", bg: "bg-amber-50" },
-              { step: "02", title: "Clinical Analysis", desc: "We cross-reference every medicine for side effects and drug interactions using real-time search.", icon: "🧠", bg: "bg-emerald-50" },
-              { step: "03", title: "Safe Reminders", desc: "Friendly voice calls and instructions explain exactly what to watch out for.", icon: "📞", bg: "bg-blue-50" }
-            ].map((item, i) => (
-              <div key={i} className={`${item.bg} p-12 rounded-[3.5rem] border-4 border-slate-50 text-left group hover:scale-105 transition-all shadow-sm`}>
-                <div className="text-6xl mb-8 group-hover:rotate-12 transition-transform">{item.icon}</div>
-                <div className="text-blue-600 font-black text-xl mb-2 tracking-widest uppercase">Phase {item.step}</div>
-                <h3 className="text-3xl font-black text-slate-900 mb-6 tracking-tight leading-none">{item.title}</h3>
-                <p className="text-lg text-slate-600 font-bold leading-relaxed">{item.desc}</p>
+              {
+                step: "01",
+                title: "Scan Prescription",
+                desc: "Snap a photo of any doctor's note or pill bottle. Our AI decodes handwriting with 99.9% accuracy.",
+                icon: "📸",
+                color: "bg-blue-600"
+              },
+              {
+                step: "02",
+                title: "AI Analysis",
+                desc: "We extract dosages, timings, and safety warnings. Everything is converted into clear, simple language.",
+                icon: "🧠",
+                color: "bg-indigo-600"
+              },
+              {
+                step: "03",
+                title: "Voice Call Reminder",
+                desc: "Instead of tiny notifications, the app calls your phone and speaks instructions aloud at the exact right time.",
+                icon: "📞",
+                color: "bg-emerald-600"
+              }
+            ].map((s, idx) => (
+              <div key={idx} className="bg-white p-10 rounded-[3rem] shadow-xl border-4 border-slate-100 relative group hover:border-blue-200 transition-all">
+                <div className={`${s.color} w-16 h-16 rounded-2xl flex items-center justify-center text-3xl mb-8 shadow-lg text-white font-black group-hover:scale-110 transition-transform`}>
+                  {s.icon}
+                </div>
+                <div className="absolute top-10 right-10 text-slate-100 text-6xl font-black leading-none">{s.step}</div>
+                <h3 className="text-2xl font-black text-slate-900 mb-4">{s.title}</h3>
+                <p className="text-slate-500 font-bold leading-relaxed">{s.desc}</p>
               </div>
             ))}
           </div>
         </div>
       </section>
-      <footer className="bg-slate-50 py-20 border-t border-slate-100">
-        <div className="container mx-auto px-6 text-center">
-          <div className="flex justify-center gap-3 mb-8">
-            <div className="w-8 h-8 bg-blue-600 rounded-lg flex items-center justify-center text-white font-black">S</div>
-            <span className="text-xl font-black text-slate-800 tracking-tighter uppercase">SmartCare Platform</span>
-          </div>
-          <p className="text-slate-400 font-bold uppercase tracking-widest text-sm">Powered by Gemini Pro Clinical Vision</p>
-        </div>
-      </footer>
     </div>
   );
 };
@@ -198,17 +153,65 @@ const MainDashboard: React.FC<{ user: User }> = ({ user }) => {
   const [customCondition, setCustomCondition] = useState('');
   const [isProcessing, setIsProcessing] = useState(false);
   const [analysis, setAnalysis] = useState<PrescriptionAnalysis | null>(null);
-  const [takenKeys, setTakenKeys] = useState<Set<string>>(new Set());
+  
+  const [takenKeys, setTakenKeys] = useState<Set<string>>(() => {
+    const saved = localStorage.getItem('scr_taken_keys');
+    return saved ? new Set(JSON.parse(saved)) : new Set();
+  });
+
+  const [reminderPref, setReminderPref] = useState<ReminderPreference>(() => {
+    const saved = localStorage.getItem('scr_reminder_pref');
+    return (saved as ReminderPreference) || 'voice';
+  });
+
+  const [remindersArmed, setRemindersArmed] = useState(false);
+  const [isTestCall, setIsTestCall] = useState(false);
+  const [triggeredDoses, setTriggeredDoses] = useState<Set<string>>(new Set());
+  const [simulatedTime, setSimulatedTime] = useState<TimeOfDay>(TimeOfDay.MORNING);
+  const [activeCallMed, setActiveCallMed] = useState<Medicine | null>(null);
   const [showCallUI, setShowCallUI] = useState(false);
+
+  const CONDITIONS = ["Alzheimer's", "Dementia", "Forgetfulness", "Diabetes", "Hypertension", "Arthritis"];
+
+  useEffect(() => {
+    localStorage.setItem('scr_taken_keys', JSON.stringify(Array.from(takenKeys)));
+  }, [takenKeys]);
+
+  useEffect(() => {
+    localStorage.setItem('scr_reminder_pref', reminderPref);
+  }, [reminderPref]);
+
+  useEffect(() => {
+    if (!analysis || showCallUI || !remindersArmed) return;
+
+    const medDueNow = analysis.medicines.find(m => 
+      m.timing.includes(simulatedTime) && 
+      !takenKeys.has(`${m.id}-${simulatedTime}`) &&
+      !triggeredDoses.has(`${m.id}-${simulatedTime}`)
+    );
+
+    if (medDueNow) {
+      if (reminderPref === 'voice') {
+        setActiveCallMed(medDueNow);
+        setShowCallUI(true);
+        setTriggeredDoses(prev => new Set(prev).add(`${medDueNow.id}-${simulatedTime}`));
+      } else if (reminderPref === 'notification') {
+        const text = `Attention: It is time for your ${simulatedTime} dose. Please take ${medDueNow.dosage} of ${medDueNow.name}. ${medDueNow.instructions}`;
+        const utterance = new SpeechSynthesisUtterance(text);
+        utterance.rate = 0.85;
+        window.speechSynthesis.speak(utterance);
+        setTriggeredDoses(prev => new Set(prev).add(`${medDueNow.id}-${simulatedTime}`));
+      }
+    }
+  }, [simulatedTime, analysis, takenKeys, reminderPref, showCallUI, triggeredDoses, remindersArmed]);
 
   const handleDataReady = async (source: string) => {
     setIsProcessing(true);
     try {
-      const result = await geminiService.analyzePrescription(source, {
-        ...patientInfo,
-        condition: patientInfo.condition === 'Other' ? customCondition : patientInfo.condition
-      });
+      const conditionToSubmit = patientInfo.condition === 'Other' ? customCondition : patientInfo.condition;
+      const result = await geminiService.analyzePrescription(source, { ...patientInfo, condition: conditionToSubmit });
       setAnalysis(result);
+      setRemindersArmed(false); 
       setStep('dashboard');
     } catch (err) {
       setAnalysis(MOCK_PRESCRIPTION_DATA);
@@ -216,81 +219,78 @@ const MainDashboard: React.FC<{ user: User }> = ({ user }) => {
     } finally { setIsProcessing(false); }
   };
 
-  const handleContinue = () => {
-    if (patientInfo.condition === 'Other' && !customCondition) return;
-    setStep('upload');
+  const handleTestCall = () => {
+    if (!analysis) return;
+    setIsTestCall(true);
+    setActiveCallMed(analysis.medicines[0]);
+    setShowCallUI(true);
   };
 
+  const markAsTaken = (id: string, time: TimeOfDay) => {
+    const key = `${id}-${time}`;
+    setTakenKeys(prev => {
+      const next = new Set(prev);
+      next.add(key);
+      return next;
+    });
+    if (activeCallMed?.id === id) {
+      setShowCallUI(false);
+      setActiveCallMed(null);
+      setIsTestCall(false);
+    }
+  };
+
+  const getDailyProgress = () => {
+    if (!analysis) return 0;
+    const totalDoses = analysis.medicines.reduce((acc, m) => acc + m.timing.length, 0);
+    return totalDoses === 0 ? 0 : Math.round((takenKeys.size / totalDoses) * 100);
+  };
+
+  const canContinue = patientInfo.age && patientInfo.condition && (patientInfo.condition !== 'Other' || customCondition.trim() !== '');
+
   return (
-    <div className="min-h-screen pb-24 bg-slate-50">
-      {showCallUI && (
+    <div className="min-h-screen pb-16 bg-slate-50">
+      {showCallUI && activeCallMed && (
         <IncomingCallUI 
-          callerName="SmartCare Safety Assistant"
-          medicineInfo={analysis ? `${analysis.medicines[0].dosage} of ${analysis.medicines[0].name}` : "Your Dose"}
+          callerName={isTestCall ? "TEST CALL: SmartCare" : "SmartCare Care Guard"}
+          medicineInfo={isTestCall ? "Verify Speaker Volume" : `${activeCallMed.dosage} of ${activeCallMed.name}`}
+          instructions={isTestCall ? "Can you hear the AI assistant clearly?" : activeCallMed.instructions}
+          timeOfDay={simulatedTime}
           onAccept={() => {}}
-          onDecline={() => setShowCallUI(false)}
+          onDecline={() => { setShowCallUI(false); setIsTestCall(false); }}
         />
       )}
-      <div className="container mx-auto px-6 py-12">
+      
+      <div className="container mx-auto px-4 md:px-6 py-8">
         {step === 'onboarding' && (
-          <div className="max-w-2xl mx-auto bg-white p-14 rounded-[4.5rem] shadow-3xl border-8 border-blue-50 animate-in fade-in slide-in-from-bottom-10">
-            <h2 className="text-5xl font-black text-center mb-10 tracking-tight">Setup Patient</h2>
-            <div className="space-y-10">
-              <div className="space-y-4">
-                <label className="text-sm font-black text-slate-400 uppercase tracking-widest pl-4">Patient Age</label>
-                <input 
-                  type="number" 
-                  className="w-full px-10 py-7 rounded-3xl bg-slate-50 border-4 border-slate-100 text-3xl font-black focus:border-blue-600 outline-none" 
-                  placeholder="e.g. 75" 
-                  value={patientInfo.age} 
-                  onChange={e => setPatientInfo({...patientInfo, age: e.target.value})} 
-                />
+          <div className="max-w-xl mx-auto bg-white p-8 md:p-14 rounded-[3.5rem] shadow-3xl border-8 border-blue-50 animate-in fade-in zoom-in duration-500">
+            <h2 className="text-4xl font-black text-center mb-10 tracking-tight text-slate-900">Get Started</h2>
+            <div className="space-y-8">
+              <div className="space-y-3">
+                <label className="text-[10px] font-black text-slate-400 uppercase tracking-widest pl-2">Patient Age</label>
+                <input type="number" className="w-full px-6 py-5 rounded-2xl bg-slate-50 border-4 border-slate-100 text-2xl font-black focus:border-blue-600 outline-none" placeholder="e.g. 75" value={patientInfo.age} onChange={e => setPatientInfo({...patientInfo, age: e.target.value})} />
               </div>
 
-              <div className="space-y-4">
-                <label className="text-sm font-black text-slate-400 uppercase tracking-widest pl-4">Primary Condition</label>
-                <div className="grid grid-cols-2 gap-4">
-                  {['Dementia', 'Alzheimer\'s', 'Diabetes', 'Hypertension'].map(c => (
-                    <button 
-                      key={c} 
-                      onClick={() => {
-                        setPatientInfo({...patientInfo, condition: c});
-                        setCustomCondition('');
-                      }} 
-                      className={`py-6 rounded-3xl text-2xl font-black border-4 transition-all ${patientInfo.condition === c ? 'bg-blue-600 text-white border-blue-400 shadow-xl scale-105' : 'bg-slate-50 border-slate-100 hover:border-blue-200'}`}
-                    >
+              <div className="space-y-3">
+                <label className="text-[10px] font-black text-slate-400 uppercase tracking-widest pl-2">Condition</label>
+                <div className="grid grid-cols-2 gap-3">
+                  {CONDITIONS.map(c => (
+                    <button key={c} onClick={() => setPatientInfo({...patientInfo, condition: c})} className={`px-4 py-4 rounded-2xl font-black text-sm transition-all border-4 ${patientInfo.condition === c ? 'bg-blue-600 text-white border-blue-400 shadow-lg scale-105' : 'bg-slate-50 text-slate-500 border-slate-100'}`}>
                       {c}
                     </button>
                   ))}
-                  <button 
-                    onClick={() => setPatientInfo({...patientInfo, condition: 'Other'})}
-                    className={`col-span-2 py-6 rounded-3xl text-2xl font-black border-4 transition-all ${patientInfo.condition === 'Other' ? 'bg-blue-600 text-white border-blue-400' : 'bg-slate-50 border-slate-100'}`}
-                  >
-                    Something Else
+                  <button onClick={() => setPatientInfo({...patientInfo, condition: 'Other'})} className={`col-span-2 px-4 py-4 rounded-2xl font-black text-sm transition-all border-4 ${patientInfo.condition === 'Other' ? 'bg-blue-600 text-white border-blue-400' : 'bg-slate-50 text-slate-500 border-slate-100'}`}>
+                    Other...
                   </button>
                 </div>
               </div>
 
               {patientInfo.condition === 'Other' && (
-                <div className="space-y-4 animate-in zoom-in duration-300">
-                  <label className="text-sm font-black text-blue-600 uppercase tracking-widest pl-4">Please specify condition:</label>
-                  <input 
-                    type="text" 
-                    autoFocus
-                    className="w-full px-10 py-7 rounded-3xl bg-blue-50 border-4 border-blue-100 text-2xl font-bold focus:border-blue-600 outline-none" 
-                    placeholder="e.g. Heart Surgery Recovery..." 
-                    value={customCondition} 
-                    onChange={e => setCustomCondition(e.target.value)} 
-                  />
-                </div>
+                <input type="text" className="w-full px-6 py-5 rounded-2xl bg-blue-50 border-4 border-blue-200 text-xl font-black text-blue-900 outline-none" placeholder="Enter condition..." value={customCondition} onChange={e => setCustomCondition(e.target.value)} />
               )}
 
-              <button 
-                onClick={handleContinue} 
-                disabled={!patientInfo.age || !patientInfo.condition || (patientInfo.condition === 'Other' && !customCondition)} 
-                className="w-full py-8 bg-blue-600 text-white text-3xl font-black rounded-[2.5rem] shadow-2xl disabled:opacity-50 transition-all hover:bg-blue-700 active:scale-95"
-              >
-                Continue to Scan
+              <button onClick={() => setStep('upload')} disabled={!canContinue} className={`w-full py-6 text-2xl font-black rounded-3xl shadow-xl transition-all ${canContinue ? 'bg-blue-600 text-white hover:scale-[1.02]' : 'bg-slate-100 text-slate-300'}`}>
+                Continue
               </button>
             </div>
           </div>
@@ -299,26 +299,96 @@ const MainDashboard: React.FC<{ user: User }> = ({ user }) => {
         {step === 'upload' && <PrescriptionUpload onUpload={handleDataReady} isProcessing={isProcessing} />}
 
         {step === 'dashboard' && analysis && (
-          <div className="grid grid-cols-1 lg:grid-cols-12 gap-12 animate-in fade-in duration-700">
-            <div className="lg:col-span-8 space-y-12">
-              <div className="p-14 rounded-[4.5rem] bg-gradient-to-br from-blue-600 to-indigo-800 text-white shadow-3xl relative overflow-hidden">
-                <h2 className="text-5xl font-black mb-8 tracking-tight">Care Summary</h2>
-                <p className="text-blue-50 text-2xl font-bold mb-12 opacity-90 leading-relaxed">{analysis.summary}</p>
-                <VoiceAssistant text={analysis.summary} />
+          <div className="grid grid-cols-1 lg:grid-cols-12 gap-8 md:gap-10 animate-in fade-in duration-700">
+            <div className="lg:col-span-8 space-y-8">
+              {/* COMPACT TOP BAR */}
+              <div className="p-6 bg-white rounded-[2.5rem] border-4 border-slate-100 shadow-lg flex flex-col md:flex-row items-center gap-6">
+                <div className="flex-1 text-center md:text-left">
+                  <h3 className="text-xl font-black text-slate-800">Current Schedule Preview</h3>
+                  <p className="text-slate-400 font-bold text-sm italic">Simulate your daily dose timing</p>
+                </div>
+                <div className="flex flex-wrap justify-center gap-2 bg-slate-50 p-1.5 rounded-2xl border-2 border-slate-100">
+                  {Object.values(TimeOfDay).map(t => (
+                    <button key={t} onClick={() => setSimulatedTime(t)} className={`px-4 py-2 rounded-xl font-black text-xs transition-all ${simulatedTime === t ? 'bg-blue-600 text-white shadow-md' : 'text-slate-400 hover:bg-white'}`}>
+                      {t}
+                    </button>
+                  ))}
+                </div>
               </div>
-              <SmartChatbot analysis={analysis} onSetReminders={()=>{}} activePreference="voice" patientInfo={patientInfo} onTriggerCall={() => setShowCallUI(true)} />
-              <div className="grid grid-cols-1 md:grid-cols-2 gap-10">
+
+              {/* COMPACT SUMMARY BAR */}
+              <div className="p-10 rounded-[3.5rem] bg-gradient-to-br from-blue-600 to-indigo-800 text-white shadow-2xl relative overflow-hidden">
+                <div className="flex flex-col md:flex-row items-center gap-8">
+                  <div className="w-24 h-24 flex-shrink-0 border-4 border-white/20 rounded-full flex items-center justify-center bg-white/10 backdrop-blur-sm">
+                    <div className="text-center">
+                      <span className="block text-2xl font-black">{getDailyProgress()}%</span>
+                      <span className="text-[8px] uppercase font-black opacity-60">Complete</span>
+                    </div>
+                  </div>
+                  <div className="flex-1 text-center md:text-left">
+                    <h2 className="text-3xl font-black mb-3 tracking-tight">Today's Focus</h2>
+                    <p className="text-blue-50 text-lg font-bold opacity-90 leading-snug mb-6">{analysis.summary}</p>
+                    <VoiceAssistant text={analysis.summary} />
+                  </div>
+                </div>
+              </div>
+
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-8">
                 {[TimeOfDay.MORNING, TimeOfDay.AFTERNOON, TimeOfDay.EVENING, TimeOfDay.NIGHT].map(time => (
-                  <ScheduleCard key={time} time={time} medicines={analysis.medicines.filter(m => m.timing.includes(time))} takenKeys={takenKeys} onMarkTaken={(id, t) => setTakenKeys(prev => new Set(prev).add(`${id}-${t}`))} />
+                  <ScheduleCard key={time} time={time} medicines={analysis.medicines.filter(m => m.timing.includes(time))} takenKeys={takenKeys} onMarkTaken={markAsTaken} />
                 ))}
               </div>
             </div>
-            <div className="lg:col-span-4 space-y-10">
-              <LocalSupport />
-              <button onClick={() => setStep('upload')} className="w-full p-10 bg-white border-8 border-white text-blue-600 rounded-[4rem] font-black text-2xl shadow-xl flex items-center justify-between group hover:border-blue-50 transition-all">
-                <span>Update Scan</span>
-                <span className="text-4xl group-hover:rotate-12 transition-transform">📸</span>
-              </button>
+
+            <div className="lg:col-span-4 space-y-8">
+              <div className="p-8 bg-white rounded-[3rem] border-4 border-slate-100 shadow-lg">
+                 <h3 className="text-xl font-black mb-4">Care Guard Engine</h3>
+                 <div className="space-y-6">
+                    <div className={`p-6 rounded-3xl border-4 transition-all ${remindersArmed ? 'bg-emerald-50 border-emerald-200' : 'bg-red-50 border-red-100'}`}>
+                       <div className="flex items-center justify-between mb-3">
+                          <span className={`font-black uppercase text-[10px] tracking-widest ${remindersArmed ? 'text-emerald-700' : 'text-red-600'}`}>
+                            {remindersArmed ? 'Active & Watching' : 'Paused'}
+                          </span>
+                          <span className={`w-2.5 h-2.5 rounded-full ${remindersArmed ? 'bg-emerald-500 animate-pulse' : 'bg-red-500'}`}></span>
+                       </div>
+                       
+                       {!remindersArmed ? (
+                         <div className="space-y-4">
+                            <p className="text-red-900 font-bold text-sm leading-snug">
+                               System is inactive. Click below to begin voice guardianship.
+                            </p>
+                            <button onClick={() => setRemindersArmed(true)} className="w-full py-4 bg-red-600 text-white font-black rounded-2xl shadow-lg hover:bg-red-700 active:scale-95 transition-all text-sm">
+                               Arm Voice Calls
+                            </button>
+                         </div>
+                       ) : (
+                         <div className="space-y-4">
+                            <p className="text-emerald-900 font-bold text-sm leading-snug">
+                               Calling {reminderPref === 'voice' ? 'Phone' : 'Room'} for every dose.
+                            </p>
+                            <button onClick={() => setRemindersArmed(false)} className="w-full py-4 bg-white text-emerald-700 border-2 border-emerald-200 font-black rounded-2xl hover:bg-emerald-100 transition-all text-sm">
+                               Pause System
+                            </button>
+                         </div>
+                       )}
+                    </div>
+
+                    <div className="p-4 bg-slate-50 rounded-2xl border-2 border-slate-100 flex items-center justify-between">
+                       <p className="text-xs font-black text-slate-500">Need a trial?</p>
+                       <button onClick={handleTestCall} className="px-4 py-2 bg-white border-2 border-slate-200 rounded-xl font-black text-[10px] text-slate-600 hover:bg-slate-100 transition-all">
+                         Test Call
+                       </button>
+                    </div>
+                 </div>
+              </div>
+
+              <SmartChatbot 
+                analysis={analysis} 
+                onSetReminders={(pref) => { setReminderPref(pref); setTriggeredDoses(new Set()); }} 
+                activePreference={reminderPref} 
+                patientInfo={patientInfo} 
+                onTriggerCall={handleTestCall} 
+              />
             </div>
           </div>
         )}
@@ -332,11 +402,11 @@ const LoginPage: React.FC<{ onLogin: (n: string) => void }> = ({ onLogin }) => {
   const navigate = useNavigate();
   return (
     <div className="min-h-screen bg-slate-50 flex items-center justify-center px-6">
-      <div className="max-w-md w-full bg-white p-14 rounded-[4rem] shadow-3xl text-center border-8 border-white">
-        <div className="w-20 h-20 bg-blue-100 text-blue-600 rounded-3xl flex items-center justify-center text-4xl mx-auto mb-10">👤</div>
-        <h2 className="text-4xl font-black mb-10">Care Sign In</h2>
-        <input type="text" className="w-full px-8 py-6 rounded-2xl bg-slate-50 border-4 border-slate-100 text-2xl font-bold mb-8 outline-none focus:border-blue-600 transition-all" placeholder="Enter Your Name" value={name} onChange={e => setName(e.target.value)} />
-        <button onClick={() => { if(name) { onLogin(name); navigate('/app'); } }} className="w-full py-7 bg-blue-600 text-white text-2xl font-black rounded-3xl shadow-xl hover:bg-blue-700 transition-all">Start Session</button>
+      <div className="max-w-md w-full bg-white p-12 rounded-[3.5rem] shadow-3xl text-center">
+        <div className="w-16 h-16 bg-blue-600 rounded-2xl flex items-center justify-center text-white text-2xl font-black mx-auto mb-8 shadow-xl">S</div>
+        <h2 className="text-3xl font-black mb-8">Patient Portal</h2>
+        <input type="text" className="w-full px-6 py-5 rounded-2xl bg-slate-50 border-4 border-slate-100 text-xl font-bold mb-6 outline-none focus:border-blue-600" placeholder="Full Name" value={name} onChange={e => setName(e.target.value)} />
+        <button onClick={() => { if(name) { onLogin(name); navigate('/app'); } }} className="w-full py-5 bg-blue-600 text-white text-xl font-black rounded-2xl shadow-xl hover:scale-105 active:scale-95 transition-all">Enter Care Room</button>
       </div>
     </div>
   );
@@ -357,11 +427,9 @@ const ApiKeyGuard: React.FC<{ children: React.ReactNode }> = ({ children }) => {
   if (hasKey === null) return null;
   if (!hasKey) return (
     <div className="min-h-screen bg-slate-900 flex items-center justify-center p-6 text-center">
-      <div className="max-w-md bg-white p-14 rounded-[3.5rem] shadow-2xl">
-        <div className="w-20 h-20 bg-amber-100 text-amber-600 rounded-3xl flex items-center justify-center text-4xl mx-auto mb-8">🔐</div>
-        <h2 className="text-3xl font-black mb-4">Connect Gemini</h2>
-        <p className="text-slate-500 mb-8 font-bold leading-relaxed">Safety first. Connect your API key to enable clinical prescription analysis.</p>
-        <button onClick={handleKey} className="w-full py-6 bg-blue-600 text-white rounded-3xl font-black text-xl hover:bg-blue-700 shadow-xl transition-all">Select API Key</button>
+      <div className="max-w-md bg-white p-14 rounded-[3.5rem]">
+        <h2 className="text-3xl font-black mb-4">Connect AI</h2>
+        <button onClick={handleKey} className="w-full py-6 bg-blue-600 text-white rounded-3xl font-black text-xl">Select API Key</button>
       </div>
     </div>
   );
@@ -376,7 +444,7 @@ const App: React.FC = () => {
         <div className="min-h-screen flex flex-col">
           <Nav user={user} onLogout={logout} />
           <Routes>
-            <Route path="/" element={<LandingPage />} />
+            <Route path="/" element={<LandingPage isAuthenticated={isAuthenticated} />} />
             <Route path="/login" element={<LoginPage onLogin={login} />} />
             <Route path="/app" element={isAuthenticated ? <MainDashboard user={user!} /> : <Navigate to="/login" />} />
           </Routes>
