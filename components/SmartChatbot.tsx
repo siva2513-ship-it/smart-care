@@ -16,6 +16,7 @@ const SmartChatbot: React.FC<SmartChatbotProps> = ({ analysis, onSetReminders, a
   const [userInput, setUserInput] = useState('');
   const [isTyping, setIsTyping] = useState(false);
   const [isSpeaking, setIsSpeaking] = useState(false);
+  const [welcomeSpoken, setWelcomeSpoken] = useState(false);
   const scrollRef = useRef<HTMLDivElement>(null);
 
   const t = (en: string, hi: string, te: string) => {
@@ -39,7 +40,10 @@ const SmartChatbot: React.FC<SmartChatbotProps> = ({ analysis, onSetReminders, a
 
   const speak = (text: string) => {
     if (!('speechSynthesis' in window)) return;
+    
+    // Stop any existing speech
     window.speechSynthesis.cancel();
+    
     const utterance = new SpeechSynthesisUtterance(text);
     
     switch (patientInfo.language) {
@@ -51,6 +55,11 @@ const SmartChatbot: React.FC<SmartChatbotProps> = ({ analysis, onSetReminders, a
     utterance.rate = 0.95;
     utterance.onstart = () => setIsSpeaking(true);
     utterance.onend = () => setIsSpeaking(false);
+    utterance.onerror = (e) => {
+      console.error("Speech error", e);
+      setIsSpeaking(false);
+    };
+
     window.speechSynthesis.speak(utterance);
   };
 
@@ -61,11 +70,10 @@ const SmartChatbot: React.FC<SmartChatbotProps> = ({ analysis, onSetReminders, a
     } else if (patientInfo.language === 'te') {
       welcome = `నమస్కారం, నేను మీ స్మార్ట్‌కేర్ అసిస్టెంట్‌ని. మీ ప్రిస్క్రిప్షన్‌లో ${analysis.medicines.length} మందులను నేను చూశాను. మీరు వీటి గురించి ఏదైనా అడగాలనుకుంటున్నారా?`;
     } else {
-      welcome = `Hello, I'm your SmartCare assistant. I've noted ${analysis.medicines.length} medications in your prescription. How can I help you stay safe today?`;
+      welcome = `Hello, I'm your SmartCare assistant. I've noted ${analysis.medicines.length} medications in your prescription. How can I help you today?`;
     }
     
     setMessages([{ id: 'welcome', text: welcome, sender: 'ai', timestamp: new Date() }]);
-    speak(welcome);
   }, [analysis, patientInfo.language]);
 
   useEffect(() => {
@@ -83,12 +91,13 @@ const SmartChatbot: React.FC<SmartChatbotProps> = ({ analysis, onSetReminders, a
     setMessages(prev => [...prev, newUserMessage]);
     setUserInput('');
     setIsTyping(true);
-    stopSpeaking();
+    stopSpeaking(); // Stop AI speaking when user starts a new message
 
     try {
       const result = await geminiService.askQuestion(text, analysis.medicines, currentHistory, patientInfo);
+      const aiMsgId = (Date.now() + 1).toString();
       setMessages(prev => [...prev, { 
-        id: (Date.now() + 1).toString(), 
+        id: aiMsgId, 
         text: result.text, 
         sources: result.sources, 
         sender: 'ai', 
@@ -103,8 +112,18 @@ const SmartChatbot: React.FC<SmartChatbotProps> = ({ analysis, onSetReminders, a
     }
   };
 
+  const handleInitialInteraction = () => {
+    if (!welcomeSpoken && messages.length > 0) {
+      speak(messages[0].text);
+      setWelcomeSpoken(true);
+    }
+  };
+
   return (
-    <div className="bg-white rounded-[3rem] border-2 border-slate-100 shadow-2xl overflow-hidden flex flex-col h-[600px] transition-all">
+    <div 
+      className="bg-white rounded-[3rem] border-2 border-slate-100 shadow-2xl overflow-hidden flex flex-col h-[600px] transition-all"
+      onClick={handleInitialInteraction}
+    >
       {/* Header */}
       <div className="p-6 bg-slate-900 text-white flex items-center justify-between">
         <div className="flex items-center gap-4">
@@ -120,7 +139,7 @@ const SmartChatbot: React.FC<SmartChatbotProps> = ({ analysis, onSetReminders, a
           </div>
         </div>
         {isSpeaking && (
-           <button onClick={stopSpeaking} className="flex items-center gap-3 px-4 py-2 bg-red-600/10 border border-red-500/30 rounded-xl hover:bg-red-600 transition-all group">
+           <button onClick={(e) => { e.stopPropagation(); stopSpeaking(); }} className="flex items-center gap-3 px-4 py-2 bg-red-600/10 border border-red-500/30 rounded-xl hover:bg-red-600 transition-all group">
               <div className="flex gap-1 h-3 items-end">
                 {[...Array(4)].map((_, i) => (
                   <div key={i} className="w-1 bg-red-500 animate-voice-pulse" style={{ height: `${40 + Math.random()*60}%`, animationDelay: `${i*0.1}s` }}></div>
@@ -133,6 +152,11 @@ const SmartChatbot: React.FC<SmartChatbotProps> = ({ analysis, onSetReminders, a
 
       {/* Chat Messages */}
       <div ref={scrollRef} className="flex-1 p-6 space-y-6 overflow-y-auto bg-slate-50/50 custom-scrollbar">
+        {!welcomeSpoken && (
+          <button onClick={(e) => { e.stopPropagation(); handleInitialInteraction(); }} className="w-full py-2 bg-blue-50 text-blue-600 rounded-xl text-[10px] font-black uppercase tracking-widest border border-blue-100 animate-pulse">
+            Click to activate Voice Assistant 🔊
+          </button>
+        )}
         {messages.map(msg => (
           <div key={msg.id} className={`flex flex-col ${msg.sender === 'ai' ? 'items-start' : 'items-end'} group animate-in slide-in-from-bottom-2 duration-300`}>
             {msg.sender === 'ai' && (
@@ -178,7 +202,7 @@ const SmartChatbot: React.FC<SmartChatbotProps> = ({ analysis, onSetReminders, a
             {QUICK_CHIPS.map((chip, idx) => (
               <button 
                 key={idx}
-                onClick={() => handleSendMessage(chip.query)}
+                onClick={(e) => { e.stopPropagation(); handleSendMessage(chip.query); }}
                 disabled={isTyping}
                 className="whitespace-nowrap px-4 py-2 bg-blue-50 text-blue-600 rounded-full text-[10px] font-black uppercase tracking-wider border border-blue-100 hover:bg-blue-600 hover:text-white transition-all active:scale-90 shrink-0"
               >
@@ -191,14 +215,14 @@ const SmartChatbot: React.FC<SmartChatbotProps> = ({ analysis, onSetReminders, a
       {/* Input Area */}
       <div className="p-6 bg-white border-t border-slate-100">
         <form 
-          onSubmit={(e) => { e.preventDefault(); handleSendMessage(userInput); }} 
+          onSubmit={(e) => { e.preventDefault(); e.stopPropagation(); handleSendMessage(userInput); }} 
           className="relative flex items-center"
         >
           <input 
             type="text" 
             value={userInput} 
             onChange={(e) => setUserInput(e.target.value)} 
-            placeholder={t('Ask about side effects, safety...', 'दुष्प्रभाव, सुरक्षा के बारे में पूछें...', 'దుష్ప్రభావాలు, భద్రత గురించి అడగండి...')} 
+            placeholder={t('Ask me something...', 'मुझसे कुछ पूछें...', 'నన్ను ఏదైనా అడగండి...')} 
             className="w-full pl-6 pr-16 py-4 rounded-2xl bg-slate-50 border-2 border-slate-100 outline-none text-sm font-bold focus:border-blue-600 transition-all placeholder:text-slate-300" 
             disabled={isTyping}
           />

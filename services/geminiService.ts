@@ -1,5 +1,5 @@
 
-import { GoogleGenAI, Type } from "@google/genai";
+import { GoogleGenAI, Type, Chat } from "@google/genai";
 import { PrescriptionAnalysis, Medicine, PatientInfo, ChatMessage, Language } from "../types";
 
 export class GeminiService {
@@ -29,7 +29,7 @@ export class GeminiService {
     3. LANGUAGE ADAPTATION: Output for a native ${langName} speaker.
        - MEDICINE NAME: Keep in English (e.g., "Paracetamol").
        - DOSAGE: Keep in English/Metric (e.g., "650mg").
-       - INSTRUCTIONS: Translate into simple, conversational ${langName}. (e.g., for Telugu "భోజనం తర్వాత వేసుకోండి").
+       - INSTRUCTIONS: Translate into simple, conversational ${langName}.
        - SUMMARY: Provide a warm daily plan in ${langName}.
     
     SCHEMA RULES:
@@ -48,7 +48,7 @@ export class GeminiService {
                   data: base64Image.split(',')[1] || base64Image
                 }
               },
-              { text: `Transcribe and translate this prescription for a ${langName} speaker. Focus on instructions. Return JSON.` }
+              { text: `Transcribe and translate this prescription for a ${langName} speaker. Return JSON.` }
             ]
           }
         ],
@@ -103,24 +103,20 @@ export class GeminiService {
     const ai = this.getClient();
     const langName = this.getLanguageName(patientInfo.language);
     
-    const contents = history.map(msg => ({
-      role: msg.sender === 'user' ? 'user' : 'model',
-      parts: [{ text: msg.text }]
-    }));
-
-    contents.push({
-      role: 'user',
-      parts: [{ text: `Language: ${langName}\nPatient: ${patientInfo.age}yr, ${patientInfo.condition}\nQuery: ${query}` }]
-    });
-
-    const response = await ai.models.generateContent({
+    // Using the official Chat session API for better state management
+    const chat = ai.chats.create({
       model: 'gemini-3-flash-preview',
-      contents: contents as any,
       config: {
         tools: [{ googleSearch: {} }],
-        systemInstruction: `You are a medical assistant. RESPOND ENTIRELY IN ${langName.toUpperCase()}. Be warm and safety-conscious.`
+        systemInstruction: `You are a medical assistant for an elderly patient. 
+        Current Meds: ${medicines.map(m => m.name).join(', ')}.
+        Patient: ${patientInfo.age}yrs old.
+        Language: Respond EXCLUSIVELY in ${langName.toUpperCase()}.
+        Rules: Be empathetic, use simple terms, and always prioritize safety.`
       }
     });
+
+    const response = await chat.sendMessage({ message: query });
 
     return {
       text: response.text || "...",
