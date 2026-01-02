@@ -20,53 +20,76 @@ const ScheduleCard: React.FC<ScheduleCardProps> = ({ time, medicines, takenKeys,
     }
   };
 
+  const getMedIcon = (name: string) => {
+    const lower = name.toLowerCase();
+    if (lower.includes('pill') || lower.includes('tablet')) return '💊';
+    if (lower.includes('capsule')) return '💊';
+    if (lower.includes('liquid') || lower.includes('syrup')) return '🧪';
+    if (lower.includes('inhaler') || lower.includes('spray')) return '🌬️';
+    if (lower.includes('injection')) return '💉';
+    return '💊'; // Default
+  };
+
   const theme = getTheme(time);
 
   return (
-    <div className={`p-4 rounded-[2rem] border-2 ${theme.split(' text')[0]} flex flex-col transition-all hover:shadow-lg`}>
-      <div className="flex items-center gap-3 mb-4 px-2">
-        <div className="w-10 h-10 bg-white rounded-xl flex items-center justify-center shadow-sm text-xl">
+    <div className={`p-6 rounded-[2.5rem] border-2 ${theme.split(' text')[0]} flex flex-col transition-all hover:shadow-xl hover:-translate-y-1`}>
+      <div className="flex items-center gap-4 mb-6 px-1">
+        <div className="w-12 h-12 bg-white rounded-2xl flex items-center justify-center shadow-md text-2xl">
           {TIME_ICONS[time]}
         </div>
         <div>
-          <h3 className={`font-black uppercase tracking-widest text-[11px] ${theme.split(' border')[2]}`}>
+          <h3 className={`font-black uppercase tracking-[0.2em] text-[12px] ${theme.split(' border')[2]}`}>
             {time}
           </h3>
-          <p className="text-[9px] font-black text-slate-400 uppercase tracking-widest">
-            {medicines.length > 0 ? `${medicines.length} Pills Due` : 'Free'}
+          <p className="text-[10px] font-black text-slate-400 uppercase tracking-widest mt-0.5">
+            {medicines.length > 0 ? `${medicines.length} Items Due` : 'Clear'}
           </p>
         </div>
       </div>
 
-      <div className="space-y-3 flex-1">
+      <div className="space-y-4 flex-1">
         {medicines.length > 0 ? (
           medicines.map((med) => {
             const isTaken = takenKeys.has(`${med.id}-${time}`);
             return (
-              <div key={med.id} className={`bg-white/80 p-3 rounded-2xl border-2 transition-all flex flex-col gap-2 ${isTaken ? 'opacity-40 border-emerald-100' : 'border-white shadow-sm hover:border-blue-100'}`}>
-                <div className="flex justify-between items-start">
-                   <div className="flex flex-col truncate pr-2">
-                      <span className="text-xs font-black text-slate-900 truncate leading-tight">{med.name}</span>
-                      <span className="text-[9px] font-black text-slate-400 uppercase tracking-tight">{med.dosage}</span>
+              <div key={med.id} className={`bg-white p-4 rounded-3xl border-2 transition-all flex flex-col gap-3 ${isTaken ? 'opacity-30 border-emerald-100' : 'border-white shadow-md hover:border-blue-100'}`}>
+                <div className="flex justify-between items-start gap-3">
+                   <div className="flex items-center gap-3 truncate">
+                      <div className="w-10 h-10 bg-slate-50 rounded-xl flex items-center justify-center text-xl shadow-inner shrink-0">
+                        {getMedIcon(med.name)}
+                      </div>
+                      <div className="flex flex-col truncate">
+                         <span className="text-sm font-black text-slate-900 truncate leading-tight">{med.name}</span>
+                         <span className="text-[10px] font-bold text-slate-400 uppercase tracking-tight">{med.dosage}</span>
+                      </div>
                    </div>
                    <button 
                     onClick={() => !isTaken && onMarkTaken(med.id, time)}
-                    className={`w-7 h-7 rounded-lg flex items-center justify-center text-[10px] transition-all flex-shrink-0 ${isTaken ? 'bg-emerald-500 text-white' : 'bg-slate-100 text-slate-300 hover:bg-emerald-500 hover:text-white border border-slate-200'}`}
+                    className={`w-9 h-9 rounded-xl flex items-center justify-center transition-all flex-shrink-0 border-2 ${isTaken ? 'bg-emerald-500 border-emerald-500 text-white' : 'bg-slate-50 text-slate-300 hover:bg-emerald-500 hover:border-emerald-500 hover:text-white border-slate-100'}`}
                    >
                      {isTaken ? '✓' : ''}
                    </button>
                 </div>
                 {!isTaken && (
-                  <p className="text-[10px] font-bold text-slate-600 leading-tight italic opacity-80">
-                    "{med.instructions}"
-                  </p>
+                  <div className="bg-slate-50/80 p-3 rounded-2xl border border-slate-100">
+                    <p className="text-[11px] font-bold text-slate-600 leading-snug italic opacity-90">
+                      "{med.instructions}"
+                    </p>
+                  </div>
+                )}
+                {isTaken && (
+                  <div className="flex items-center gap-1.5 px-2">
+                    <span className="text-[9px] font-black text-emerald-600 uppercase tracking-widest">Verified Taken</span>
+                  </div>
                 )}
               </div>
             );
           })
         ) : (
-          <div className="flex-1 flex items-center justify-center py-6 border-2 border-dashed border-slate-200/50 rounded-2xl">
-            <span className="text-[10px] font-black text-slate-300 uppercase tracking-widest italic">All Set</span>
+          <div className="flex-1 flex flex-col items-center justify-center py-10 border-2 border-dashed border-slate-200/50 rounded-[2rem]">
+            <span className="text-2xl mb-2">✨</span>
+            <span className="text-[10px] font-black text-slate-300 uppercase tracking-widest italic text-center px-4">Nothing scheduled for this time</span>
           </div>
         )}
       </div>
