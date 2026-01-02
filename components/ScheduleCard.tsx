@@ -50,47 +50,70 @@ const ScheduleCard: React.FC<ScheduleCardProps> = ({ time, medicines, takenKeys,
           medicines.map((med) => {
             const isTaken = takenKeys.has(`${med.id}-${time}`);
             return (
-              <div key={med.id} className={`bg-white p-5 rounded-2xl border transition-all duration-300 flex items-start gap-4 shadow-sm ${isTaken ? 'opacity-60 border-emerald-200 bg-emerald-50/30' : 'border-slate-100'}`}>
-                <div className={`w-12 h-12 flex-shrink-0 rounded-full flex items-center justify-center ${isTaken ? 'bg-emerald-100 text-emerald-600' : `bg-${med.color}-100 text-${med.color}-600`}`}>
-                  {isTaken ? (
-                    <svg xmlns="http://www.w3.org/2000/svg" className="w-7 h-7" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={3} d="M5 13l4 4L19 7" />
-                    </svg>
-                  ) : (
-                    <svg xmlns="http://www.w3.org/2000/svg" className="w-7 h-7" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                       <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19.428 15.428a2 2 0 00-1.022-.547l-2.387-.477a6 6 0 00-3.86.517l-.318.158a6 6 0 01-3.86.517L6.05 15.21a2 2 0 00-1.806.547M8 4h8l-1 1v5.172a2 2 0 00.586 1.414l5 5c1.26 1.26.367 3.414-1.415 3.414H4.828c-1.782 0-2.674-2.154-1.414-3.414l5-5A2 2 0 009 10.172V5L8 4z" />
-                    </svg>
-                  )}
-                </div>
-                <div className="flex-1">
-                  <div className="flex justify-between items-start">
-                    <h4 className={`text-xl font-bold leading-tight ${isTaken ? 'text-emerald-800 line-through' : 'text-slate-800'}`}>
-                      {med.name}
-                    </h4>
-                    <span className={`text-sm font-bold px-3 py-1 rounded-full uppercase ${isTaken ? 'bg-emerald-100 text-emerald-700' : 'bg-slate-100 text-slate-600'}`}>
-                      {isTaken ? 'Done' : med.dosage}
-                    </span>
+              <div key={med.id} className={`bg-white p-5 rounded-2xl border transition-all duration-300 flex flex-col gap-4 shadow-sm ${isTaken ? 'opacity-60 border-emerald-200 bg-emerald-50/30' : 'border-slate-100'}`}>
+                <div className="flex items-start gap-4">
+                  <div className={`w-12 h-12 flex-shrink-0 rounded-full flex items-center justify-center ${isTaken ? 'bg-emerald-100 text-emerald-600' : `bg-${med.color}-100 text-${med.color}-600`}`}>
+                    {isTaken ? (
+                      <svg xmlns="http://www.w3.org/2000/svg" className="w-7 h-7" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={3} d="M5 13l4 4L19 7" />
+                      </svg>
+                    ) : (
+                      <svg xmlns="http://www.w3.org/2000/svg" className="w-7 h-7" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                         <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19.428 15.428a2 2 0 00-1.022-.547l-2.387-.477a6 6 0 00-3.86.517l-.318.158a6 6 0 01-3.86.517L6.05 15.21a2 2 0 00-1.806.547M8 4h8l-1 1v5.172a2 2 0 00.586 1.414l5 5c1.26 1.26.367 3.414-1.415 3.414H4.828c-1.782 0-2.674-2.154-1.414-3.414l5-5A2 2 0 009 10.172V5L8 4z" />
+                      </svg>
+                    )}
                   </div>
-                  <p className={`mt-2 text-lg italic leading-relaxed ${isTaken ? 'text-emerald-600/70' : 'text-slate-600'}`}>
+                  <div className="flex-1">
+                    <div className="flex justify-between items-start">
+                      <div className="flex flex-col">
+                        <h4 className={`text-xl font-bold leading-tight ${isTaken ? 'text-emerald-800 line-through' : 'text-slate-800'}`}>
+                          {med.name}
+                        </h4>
+                        {med.drugClass && (
+                          <span className="text-xs font-black text-slate-400 uppercase tracking-widest">{med.drugClass}</span>
+                        )}
+                      </div>
+                      <span className={`text-sm font-bold px-3 py-1 rounded-full uppercase ${isTaken ? 'bg-emerald-100 text-emerald-700' : 'bg-slate-100 text-slate-600'}`}>
+                        {isTaken ? 'Done' : med.dosage}
+                      </span>
+                    </div>
+                  </div>
+                </div>
+
+                {!isTaken && med.sideEffects && med.sideEffects.length > 0 && (
+                  <div className="flex flex-wrap gap-2">
+                    {med.sideEffects.map((effect, i) => (
+                      <span key={i} className="text-[10px] font-black bg-red-50 text-red-600 px-2 py-1 rounded-md border border-red-100 uppercase tracking-tighter">
+                        ⚠️ {effect}
+                      </span>
+                    ))}
+                  </div>
+                )}
+
+                {!isTaken && med.interactions && (
+                  <div className="bg-amber-50 p-3 rounded-xl border border-amber-100">
+                    <p className="text-[11px] font-bold text-amber-700 leading-tight">
+                      <span className="font-black">Interaction Warning:</span> {med.interactions}
+                    </p>
+                  </div>
+                )}
+
+                <div className="flex-1">
+                  <p className={`text-lg italic leading-relaxed ${isTaken ? 'text-emerald-600/70' : 'text-slate-600'}`}>
                     "{med.instructions}"
                   </p>
                   <div className="mt-4 flex gap-2">
                       <button 
                         onClick={() => !isTaken && onMarkTaken(med.id, time)}
                         disabled={isTaken}
-                        className={`flex-1 py-2 font-bold rounded-xl border transition-all ${
+                        className={`flex-1 py-3 font-bold rounded-xl border transition-all ${
                           isTaken 
                             ? 'bg-emerald-100 text-emerald-800 border-emerald-200 cursor-default' 
-                            : 'bg-emerald-50 text-emerald-700 border-emerald-100 hover:bg-emerald-100 active:scale-95'
+                            : 'bg-emerald-50 text-emerald-700 border-emerald-100 hover:bg-emerald-100 active:scale-95 shadow-sm'
                         }`}
                       >
                           {isTaken ? 'Completed' : 'Mark as Taken'}
                       </button>
-                      {!isTaken && (
-                        <button className="flex-1 py-2 bg-slate-50 text-slate-400 font-bold rounded-xl border border-slate-100 hover:bg-slate-100 transition-colors">
-                            Snooze
-                        </button>
-                      )}
                   </div>
                 </div>
               </div>

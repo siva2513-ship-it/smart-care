@@ -21,6 +21,9 @@ export interface Medicine {
   instructions: string;
   icon: string;
   color: string;
+  drugClass?: string;
+  sideEffects?: string[];
+  interactions?: string;
 }
 
 export interface PatientInfo {
