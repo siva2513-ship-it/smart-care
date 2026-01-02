@@ -1,3 +1,4 @@
+
 import React, { useState, useEffect } from 'react';
 import { HashRouter as Router, Routes, Route, Link, useNavigate, Navigate } from 'react-router-dom';
 import { PrescriptionAnalysis, TimeOfDay, ReminderPreference, PatientInfo, User } from './types';
@@ -8,19 +9,6 @@ import ScheduleCard from './components/ScheduleCard';
 import VoiceAssistant from './components/VoiceAssistant';
 import SmartChatbot from './components/SmartChatbot';
 import IncomingCallUI from './components/IncomingCallUI';
-
-declare global {
-  // Define AIStudio interface to match environmental declarations
-  interface AIStudio {
-    hasSelectedApiKey(): Promise<boolean>;
-    openSelectKey(): Promise<void>;
-  }
-
-  interface Window {
-    // Modifier and type must match existing declaration to avoid conflicts
-    readonly aistudio: AIStudio;
-  }
-}
 
 // --- AUTH MOCK ---
 const useAuth = () => {
@@ -49,27 +37,53 @@ const ApiKeyGuard: React.FC<{ children: React.ReactNode }> = ({ children }) => {
 
   useEffect(() => {
     const checkKey = async () => {
-      const selected = await window.aistudio.hasSelectedApiKey();
-      setHasKey(selected);
+      // Extremely defensive check for window.aistudio
+      const win = window as any;
+      if (!win.aistudio || typeof win.aistudio.hasSelectedApiKey !== 'function') {
+        console.debug("aistudio utility not available in this environment");
+        setHasKey(true);
+        return;
+      }
+
+      try {
+        const selected = await win.aistudio.hasSelectedApiKey();
+        setHasKey(selected);
+      } catch (e) {
+        console.warn("API key check failed:", e);
+        setHasKey(true);
+      }
     };
     checkKey();
   }, []);
 
   const handleSelectKey = async () => {
-    await window.aistudio.openSelectKey();
-    setHasKey(true); // Proceed assuming success as per guidelines
+    const win = window as any;
+    if (win.aistudio && typeof win.aistudio.openSelectKey === 'function') {
+      try {
+        await win.aistudio.openSelectKey();
+      } catch (e) {
+        console.error("Failed to open key selector:", e);
+      }
+    }
+    setHasKey(true);
   };
 
-  if (hasKey === null) return null;
+  if (hasKey === null) {
+    return (
+      <div className="min-h-screen bg-slate-50 flex items-center justify-center">
+        <div className="w-16 h-16 border-8 border-blue-600 border-t-transparent rounded-full animate-spin"></div>
+      </div>
+    );
+  }
 
   if (!hasKey) {
     return (
       <div className="min-h-screen bg-slate-900 flex items-center justify-center p-6">
-        <div className="max-w-md w-full bg-white rounded-[3rem] p-12 text-center shadow-2xl">
+        <div className="max-w-md w-full bg-white rounded-[3rem] p-12 text-center shadow-2xl animate-in zoom-in duration-300">
           <div className="w-24 h-24 bg-blue-100 rounded-3xl flex items-center justify-center text-4xl mx-auto mb-8">🔐</div>
           <h2 className="text-3xl font-black text-slate-900 mb-4">Connect Gemini</h2>
           <p className="text-slate-500 font-medium mb-8">
-            To provide medical OCR and voice guidance, this app requires a paid Google Cloud Project API Key.
+            To provide medical OCR and voice guidance, this app requires an API Key.
           </p>
           <a href="https://ai.google.dev/gemini-api/docs/billing" target="_blank" rel="noreferrer" className="text-blue-600 font-bold block mb-8 underline">
             Learn about API billing
@@ -92,14 +106,14 @@ const ApiKeyGuard: React.FC<{ children: React.ReactNode }> = ({ children }) => {
 const Nav: React.FC<{ user: User | null; onLogout: () => void }> = ({ user, onLogout }) => (
   <nav className="sticky top-0 z-50 glass-effect border-b border-slate-200">
     <div className="container mx-auto px-6 h-20 flex items-center justify-between">
-      <Link to="/" className="flex items-center gap-3">
-        <div className="w-10 h-10 bg-blue-600 rounded-xl flex items-center justify-center text-white font-black text-xl shadow-lg">S</div>
+      <Link to="/" className="flex items-center gap-3 group">
+        <div className="w-10 h-10 bg-blue-600 rounded-xl flex items-center justify-center text-white font-black text-xl shadow-lg group-hover:rotate-12 transition-transform">S</div>
         <span className="text-2xl font-black text-slate-800 tracking-tighter">SmartCare</span>
       </Link>
       
       <div className="flex items-center gap-8">
         <div className="hidden md:flex items-center gap-8">
-          <a href="#how-it-works" className="font-bold text-slate-600 hover:text-blue-600 transition-colors text-sm">How it Works</a>
+          <a href="#how" className="font-bold text-slate-600 hover:text-blue-600 transition-colors text-sm">How it Works</a>
           <a href="#support" className="font-bold text-slate-600 hover:text-blue-600 transition-colors text-sm">Support</a>
         </div>
         
@@ -141,8 +155,9 @@ const MainDashboard: React.FC<{ user: User }> = ({ user }) => {
       setStep('dashboard');
     } catch (err: any) {
       console.error("AI Error:", err);
-      if (err.message?.includes("Requested entity was not found")) {
-        await window.aistudio.openSelectKey();
+      const win = window as any;
+      if ((err.message?.includes("API key not found") || err.message?.includes("Requested entity was not found")) && win.aistudio) {
+        await win.aistudio.openSelectKey();
         return;
       }
       setAnalysis(MOCK_PRESCRIPTION_DATA);
@@ -161,7 +176,7 @@ const MainDashboard: React.FC<{ user: User }> = ({ user }) => {
   };
 
   return (
-    <div className="min-h-screen bg-slate-50 pb-24">
+    <div className="min-h-screen pb-24">
       {showCallUI && (
         <IncomingCallUI 
           callerName="Smart Care Assistant"
@@ -183,11 +198,12 @@ const MainDashboard: React.FC<{ user: User }> = ({ user }) => {
                   className="w-full px-10 py-7 rounded-3xl bg-slate-50 border-4 border-slate-100 text-3xl font-black focus:border-blue-600 focus:bg-white outline-none transition-all shadow-inner"
                   value={patientInfo.age}
                   onChange={e => setPatientInfo({...patientInfo, age: e.target.value})}
+                  placeholder="e.g. 75"
                 />
               </div>
               <div>
                 <label className="block text-2xl font-black text-slate-700 mb-4">Primary Condition</label>
-                <div className="grid grid-cols-2 gap-6">
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 sm:gap-6">
                   {['Alzheimer\'s', 'Dementia', 'Vision Loss', 'General Aging'].map(c => (
                     <button 
                       key={c}
@@ -218,7 +234,7 @@ const MainDashboard: React.FC<{ user: User }> = ({ user }) => {
         )}
 
         {step === 'dashboard' && analysis && (
-          <div className="grid grid-cols-1 lg:grid-cols-12 gap-12">
+          <div className="grid grid-cols-1 lg:grid-cols-12 gap-12 animate-in fade-in duration-700">
             <div className="lg:col-span-8 space-y-12">
               <div className="p-14 rounded-[4.5rem] bg-gradient-to-br from-blue-600 to-indigo-800 text-white shadow-3xl relative overflow-hidden">
                 <div className="absolute top-0 right-0 p-8 opacity-20">
