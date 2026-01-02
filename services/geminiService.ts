@@ -19,22 +19,34 @@ export class GeminiService {
     const ai = this.getClient();
     const langName = this.getLanguageName(patientInfo.language);
     
-    const systemInstruction = `YOU ARE A WORLD-CLASS CLINICAL PHARMACIST AND MEDICAL VISION EXPERT.
-    
-    MISSION: Precise transcription of doctor handwriting with cultural and linguistic translation.
-    
-    REASONING STEPS:
-    1. VISION: Analyze the base64 image. Detect cursive medicine names, dosages (mg/ml), and Latin abbreviations.
-    2. CONTEXT: Patient is ${patientInfo.age} years old with ${patientInfo.condition}. Validate medication dosages against this context.
-    3. LANGUAGE ADAPTATION: Output for a native ${langName} speaker.
-       - MEDICINE NAME: Keep in English (e.g., "Paracetamol").
-       - DOSAGE: Keep in English/Metric (e.g., "650mg").
-       - INSTRUCTIONS: Translate into simple, conversational ${langName}.
-       - SUMMARY: Provide a warm daily plan in ${langName}.
-    
-    SCHEMA RULES:
-    - timing: MUST ONLY include ["Morning", "Afternoon", "Evening", "Night"].
-    - color: MUST ONLY include ["blue", "red", "green", "amber", "yellow"].`;
+    // Enhanced system instruction for superior OCR and Clinical Logic
+    const systemInstruction = `YOU ARE AN ELITE CLINICAL PHARMACIST SPECIALIZING IN HANDWRITING RECOGNITION (OCR) AND GERIATRIC CARE.
+
+    PRIMARY MISSION: Extract medication data from prescription images with 100% safety accuracy.
+
+    OCR HANDWRITING STRATEGY:
+    1. LINGUISTIC MAPPING: Doctors often use Latin abbreviations. Map them:
+       - OD/QD -> Once Daily
+       - BID/BD -> Twice Daily
+       - TID/TD -> Thrice Daily
+       - QID -> Four times Daily
+       - AC -> Before Food
+       - PC -> After Food
+       - HS -> At Bedtime
+    2. VISUAL DISAMBIGUATION: If a letter is ambiguous (e.g., 'n' vs 'm', '1' vs 'l'), use medical context (e.g., 'Amlodipine' is common, 'Anlodipine' is not).
+    3. DOSAGE VALIDATION: Check if extracted dosage (e.g., 500mg) is standard for that drug.
+
+    PATIENT CONTEXT:
+    - Age: ${patientInfo.age}
+    - Known Conditions: ${patientInfo.condition}
+    - Target Language: ${langName}
+
+    OUTPUT SCHEMA REQUIREMENTS:
+    - medicines: List of objects.
+    - timing: EXACTLY one or more of ["Morning", "Afternoon", "Evening", "Night"].
+    - color: A visual pill color for elderly identification (e.g., "white", "blue", "red").
+    - instructions: Simple, actionable steps in ${langName}.
+    - summary: A warm, empathetic overview of the day's health plan in ${langName}.`;
 
     try {
       const response = await ai.models.generateContent({
@@ -48,13 +60,13 @@ export class GeminiService {
                   data: base64Image.split(',')[1] || base64Image
                 }
               },
-              { text: `Transcribe and translate this prescription for a ${langName} speaker. Return JSON.` }
+              { text: `Perform deep OCR on this prescription. Identify all medicines, dosages, and frequencies. Translate instructions to ${langName}. Respond in JSON.` }
             ]
           }
         ],
         config: {
           systemInstruction: systemInstruction,
-          thinkingConfig: { thinkingBudget: 4000 },
+          thinkingConfig: { thinkingBudget: 8000 }, // Increased budget for complex handwriting
           responseMimeType: "application/json",
           responseSchema: {
             type: Type.OBJECT,
@@ -64,20 +76,20 @@ export class GeminiService {
                 items: {
                   type: Type.OBJECT,
                   properties: {
-                    name: { type: Type.STRING },
-                    dosage: { type: Type.STRING },
+                    name: { type: Type.STRING, description: "Generic or Brand name in English" },
+                    dosage: { type: Type.STRING, description: "Strength, e.g., 500mg or 5ml" },
                     timing: {
                       type: Type.ARRAY,
                       items: { type: Type.STRING }
                     },
-                    instructions: { type: Type.STRING },
-                    color: { type: Type.STRING },
+                    instructions: { type: Type.STRING, description: `Simple instructions in ${langName}` },
+                    color: { type: Type.STRING, description: "Suggested pill color for UI" },
                     drugClass: { type: Type.STRING },
                   },
                   required: ["name", "dosage", "timing", "instructions", "color"]
                 }
               },
-              summary: { type: Type.STRING }
+              summary: { type: Type.STRING, description: `Warm summary in ${langName}` }
             }
           }
         }
@@ -90,7 +102,8 @@ export class GeminiService {
         ...result,
         medicines: (result.medicines || []).map((m: any, idx: number) => ({
           ...m,
-          id: `med-${idx}-${Date.now()}`
+          id: `med-${idx}-${Date.now()}`,
+          icon: 'pill'
         }))
       };
     } catch (error) {
@@ -103,19 +116,26 @@ export class GeminiService {
     const ai = this.getClient();
     const langName = this.getLanguageName(patientInfo.language);
     
-    // Using the official Chat session API for better state management
+    // Injecting full medical context into the chat session
     const chat = ai.chats.create({
       model: 'gemini-3-flash-preview',
       config: {
         tools: [{ googleSearch: {} }],
-        systemInstruction: `You are a medical assistant for an elderly patient. 
-        Current Meds: ${medicines.map(m => m.name).join(', ')}.
-        Patient: ${patientInfo.age}yrs old.
-        Language: Respond EXCLUSIVELY in ${langName.toUpperCase()}.
-        Rules: Be empathetic, use simple terms, and always prioritize safety.`
+        systemInstruction: `You are a helpful and extremely safe Medical AI Assistant.
+        PATIENT PROFILE: Age ${patientInfo.age}, Condition: ${patientInfo.condition}.
+        ACTIVE MEDICATIONS: ${medicines.map(m => `${m.name} (${m.dosage})`).join(', ')}.
+        LANGUAGE: Always respond in ${langName.toUpperCase()}.
+        
+        CRITICAL SAFETY RULES:
+        1. If a user asks about changing dosage, tell them to CONSULT THEIR DOCTOR immediately.
+        2. Use the 'googleSearch' tool to verify side effects or interactions for the specific meds listed above.
+        3. Be empathetic but professional. Use simple analogies for medical terms.
+        4. If the language is Hindi or Telugu, ensure the grammar is natural and respectful for an elderly user.`
       }
     });
 
+    // Format history for the chat API
+    // Note: official Chat.sendMessage handles turn management
     const response = await chat.sendMessage({ message: query });
 
     return {
