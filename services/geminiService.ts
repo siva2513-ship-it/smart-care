@@ -10,17 +10,23 @@ export class GeminiService {
   async analyzePrescription(base64Image: string, patientInfo?: PatientInfo): Promise<PrescriptionAnalysis> {
     const ai = this.getClient();
     
-    const systemInstruction = `YOU ARE A CLINICAL PHARMACIST & OCR SPECIALIST.
+    const systemInstruction = `YOU ARE A SENIOR CLINICAL PHARMACIST & VISION EXPERT.
     
-    1. OCR ACCURACY: The image might be blurry or handwritten. Use your medical knowledge to correct spelling. (e.g., "Amoxcil" -> "Amoxicillin").
-    2. CLINICAL REASONING: Verify that the dosage makes sense for the drug (e.g., 500mg is typical for Amoxicillin, but not for Lisinopril).
-    3. SAFETY PROFILE: For every medicine, extract:
-       - Common side effects (relevant to seniors).
-       - Interactions (especially with other meds in the list).
-       - Drug Class (e.g., NSAID, Statin, Beta-blocker).
-    4. LATIN DECODING: PO=by mouth, QHS=bedtime, BID=twice daily, TID=thrice daily.
+    HANDWRITING DECODING PROTOCOL:
+    1. VISUAL EVIDENCE: Carefully trace strokes in handwritten text. Use medical context to resolve ambiguities (e.g., "1" vs "l", "0" vs "o").
+    2. CLINICAL VALIDATION: Compare recognized drug names against the patient's condition: ${patientInfo?.condition}. If the handwriting says "Amox...n" and the patient is ${patientInfo?.age} years old, it is likely Amoxicillin.
+    3. DOSAGE SANITY CHECK: Verify if the recognized dosage (e.g., 500mg) is standard for that drug. If it seems lethal or impossible, flag it.
+    4. INTERACTION CHECK: Look for contraindications between ALL drugs listed in the scan.
     
-    PATIENT CONTEXT: ${patientInfo?.condition}, Age: ${patientInfo?.age}.`;
+    LATIN ABBREVIATIONS:
+    - PO: by mouth
+    - BID: twice a day
+    - TID: three times a day
+    - QID: four times a day
+    - QHS: at bedtime
+    - PRN: as needed
+    
+    OUTPUT: Provide a simple, clear summary for a senior patient. Avoid medical jargon.`;
 
     try {
       const response = await ai.models.generateContent({
@@ -34,13 +40,13 @@ export class GeminiService {
                   data: base64Image.split(',')[1] || base64Image
                 }
               },
-              { text: "Read this prescription. Return JSON for medicines, side effects, and a simple 2-sentence voice-friendly summary for a senior." }
+              { text: "Read this prescription with 100% accuracy. Use your highest reasoning capability to decode handwriting. If any word is totally unreadable, mark it as [UNREADABLE]. Return JSON." }
             ]
           }
         ],
         config: {
           systemInstruction: systemInstruction,
-          thinkingConfig: { thinkingBudget: 12000 },
+          thinkingConfig: { thinkingBudget: 32768 }, // MAX BUDGET for highest accuracy
           responseMimeType: "application/json",
           responseSchema: {
             type: Type.OBJECT,
@@ -60,7 +66,8 @@ export class GeminiService {
                     color: { type: Type.STRING, enum: ["blue", "red", "green", "amber", "yellow"] },
                     drugClass: { type: Type.STRING },
                     sideEffects: { type: Type.ARRAY, items: { type: Type.STRING } },
-                    interactions: { type: Type.STRING }
+                    interactions: { type: Type.STRING },
+                    confidenceNote: { type: Type.STRING, description: "Add a note if the handwriting was difficult to read for this specific entry." }
                   },
                   required: ["name", "dosage", "timing", "instructions", "color"]
                 }
@@ -71,7 +78,7 @@ export class GeminiService {
         }
       });
 
-      const text = response.text || '{"medicines": [], "summary": "No data found."}';
+      const text = response.text || '{"medicines": [], "summary": "I could not find any medicines. Please try a clearer photo."}';
       const result = JSON.parse(text);
       
       return {
@@ -91,7 +98,7 @@ export class GeminiService {
     const ai = this.getClient();
     const response = await ai.models.generateContent({
       model: "gemini-3-flash-preview",
-      contents: "What are the most critical medical news, FDA drug recalls, or public health alerts from the last 7 days? Summarize in 3 bullet points for a public safety dashboard.",
+      contents: "List the most critical medical news, FDA drug recalls, or public health alerts from the last 7 days. Focus on things relevant to medication safety.",
       config: {
         tools: [{ googleSearch: {} }]
       }
@@ -107,7 +114,7 @@ export class GeminiService {
     const ai = this.getClient();
     const response = await ai.models.generateContent({
       model: "gemini-2.5-flash",
-      contents: "Find 3 pharmacies nearby. List their names and a one-sentence summary of why they are a good choice (e.g. 24 hours, highly rated).",
+      contents: "Locate the 3 nearest pharmacies. Mention their name and if they offer prescription pickup services.",
       config: {
         tools: [{ googleMaps: {} }],
         toolConfig: {
@@ -131,11 +138,11 @@ export class GeminiService {
       contents: `User Query: ${query}\nPatient Context: ${patientInfo?.condition}\nActive Meds: ${JSON.stringify(medicines)}`,
       config: {
         tools: [{ googleSearch: {} }],
-        systemInstruction: `You are a medical companion for seniors. 
-        1. Explain side effects and interactions using simple language. 
-        2. ALWAYS use Google Search to check the latest clinical findings for the drug class.
-        3. MANDATORY: End every single message with a clarifying question about the patient's symptoms (e.g., "Are you feeling more sleepy than usual?").
-        4. Include a disclaimer that you are an AI.`
+        systemInstruction: `You are a helpful pharmacist assistant. 
+        1. Always verify safety information using Google Search.
+        2. Keep language simple for seniors.
+        3. MANDATORY: End every response with a symptom-check question.
+        4. If the user mentions pain, ask where it hurts.`
       }
     });
 
