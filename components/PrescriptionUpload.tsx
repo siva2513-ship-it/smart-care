@@ -15,11 +15,12 @@ const PrescriptionUpload: React.FC<PrescriptionUploadProps> = ({ onUpload, isPro
   const canvasRef = useRef<HTMLCanvasElement>(null);
 
   const stages = [
-    "Optimizing image quality...",
-    "Scanning doctor's handwriting...",
-    "Decoding medical abbreviations...",
-    "Checking drug-drug interactions...",
-    "Formatting personalized care plan..."
+    "Capturing high-definition frames...",
+    "Scanning handwriting patterns...",
+    "Decoding doctor's medical script...",
+    "Cross-referencing drug databases...",
+    "Validating clinical dosages...",
+    "Translating instructions..."
   ];
 
   useEffect(() => {
@@ -39,7 +40,7 @@ const PrescriptionUpload: React.FC<PrescriptionUploadProps> = ({ onUpload, isPro
       const stream = await navigator.mediaDevices.getUserMedia({ 
         video: { 
           facingMode: 'environment',
-          width: { ideal: 4096 }, // Request high res for OCR
+          width: { ideal: 4096 }, 
           height: { ideal: 2160 }
         } 
       });
@@ -48,7 +49,7 @@ const PrescriptionUpload: React.FC<PrescriptionUploadProps> = ({ onUpload, isPro
       }
     } catch (err) {
       console.error("Camera error:", err);
-      alert("Please allow camera access for the best scanning accuracy.");
+      alert("Please allow camera access for high-accuracy medical scanning.");
       setMode('idle');
     }
   };
@@ -66,7 +67,7 @@ const PrescriptionUpload: React.FC<PrescriptionUploadProps> = ({ onUpload, isPro
       canvasRef.current.height = video.videoHeight;
       context?.drawImage(video, 0, 0);
       
-      const dataUrl = canvasRef.current.toDataURL('image/jpeg', 1.0); // Max quality for OCR
+      const dataUrl = canvasRef.current.toDataURL('image/jpeg', 0.95); 
       setPreviewUrl(dataUrl);
       setMode('preview');
       stopCamera();
@@ -101,8 +102,8 @@ const PrescriptionUpload: React.FC<PrescriptionUploadProps> = ({ onUpload, isPro
                 <div className="w-36 h-36 border-[12px] border-blue-600 border-t-transparent rounded-full animate-spin"></div>
                 <div className="absolute inset-0 flex items-center justify-center text-5xl">🔬</div>
              </div>
-             <h3 className="text-4xl font-black text-slate-900 tracking-tight mb-2">Analyzing Prescription</h3>
-             <p className="text-slate-400 font-bold mb-8">Our AI is disambiguating medical terms...</p>
+             <h3 className="text-4xl font-black text-slate-900 tracking-tight mb-2">Analyzing Script</h3>
+             <p className="text-slate-400 font-bold mb-8">AI is correcting handwriting ambiguities...</p>
              <div className="mt-4 space-y-4 w-full max-w-sm">
                 <div className="h-3 bg-slate-100 rounded-full overflow-hidden">
                    <div className="h-full bg-blue-600 transition-all duration-700" style={{ width: `${((loadingStage + 1) / stages.length) * 100}%` }}></div>
@@ -117,8 +118,8 @@ const PrescriptionUpload: React.FC<PrescriptionUploadProps> = ({ onUpload, isPro
         {mode === 'idle' && (
           <div className="flex-1 flex flex-col p-12 space-y-8">
             <div className="text-center mb-4">
-               <h3 className="text-4xl font-black text-slate-900 tracking-tight">Handwriting Scan</h3>
-               <p className="text-slate-500 font-bold text-lg mt-2 italic">Optimized for doctor prescriptions</p>
+               <h3 className="text-4xl font-black text-slate-900 tracking-tight">Clinical Scan</h3>
+               <p className="text-slate-500 font-bold text-lg mt-2 italic">Place prescription on a flat, well-lit surface</p>
             </div>
 
             <button 
@@ -128,8 +129,8 @@ const PrescriptionUpload: React.FC<PrescriptionUploadProps> = ({ onUpload, isPro
               <div className="absolute inset-0 bg-gradient-to-br from-white/10 to-transparent"></div>
               <div className="text-8xl group-hover:scale-110 transition-transform relative z-10">📸</div>
               <div className="text-center relative z-10">
-                <span className="block text-4xl font-black tracking-tight">Scan Now</span>
-                <span className="text-lg opacity-80 font-black uppercase tracking-widest mt-1">High-Accuracy Mode</span>
+                <span className="block text-4xl font-black tracking-tight">Start Scan</span>
+                <span className="text-lg opacity-80 font-black uppercase tracking-widest mt-1">HD Focus Enabled</span>
               </div>
             </button>
             
@@ -137,7 +138,7 @@ const PrescriptionUpload: React.FC<PrescriptionUploadProps> = ({ onUpload, isPro
               onClick={() => fileInputRef.current?.click()}
               className="py-8 bg-slate-50 text-slate-700 rounded-[2.5rem] font-black text-xl border-2 border-slate-200 hover:border-blue-400 hover:bg-white transition-all active:scale-95 flex items-center justify-center gap-4"
             >
-              <span>🖼️</span> Upload from Device
+              <span>🖼️</span> Import from Photos
             </button>
             <input ref={fileInputRef} type="file" accept="image/*" className="hidden" onChange={handleFileChange} />
           </div>
@@ -147,18 +148,18 @@ const PrescriptionUpload: React.FC<PrescriptionUploadProps> = ({ onUpload, isPro
           <div className="relative flex-1 bg-black overflow-hidden flex flex-col">
             <video ref={videoRef} autoPlay playsInline className="w-full h-full object-cover" />
             
-            {/* Intelligent Scan Overlay */}
-            <div className="absolute inset-0 flex flex-col items-center justify-center pointer-events-none">
-               <div className="w-[90%] h-[70%] border-4 border-white/50 border-dashed rounded-[2.5rem] relative">
-                  <div className="absolute top-0 left-0 w-12 h-12 border-t-8 border-l-8 border-blue-500 rounded-tl-3xl"></div>
-                  <div className="absolute top-0 right-0 w-12 h-12 border-t-8 border-r-8 border-blue-500 rounded-tr-3xl"></div>
-                  <div className="absolute bottom-0 left-0 w-12 h-12 border-b-8 border-l-8 border-blue-500 rounded-bl-3xl"></div>
-                  <div className="absolute bottom-0 right-0 w-12 h-12 border-b-8 border-r-8 border-blue-500 rounded-br-3xl"></div>
+            {/* Focus Guard Visual Overlay */}
+            <div className="absolute inset-0 flex flex-col items-center justify-center pointer-events-none p-10">
+               <div className="w-full h-full border-4 border-white/40 border-dashed rounded-[3rem] relative">
+                  <div className="absolute top-0 left-0 w-16 h-16 border-t-8 border-l-8 border-blue-500 rounded-tl-3xl"></div>
+                  <div className="absolute top-0 right-0 w-16 h-16 border-t-8 border-r-8 border-blue-500 rounded-tr-3xl"></div>
+                  <div className="absolute bottom-0 left-0 w-16 h-16 border-b-8 border-l-8 border-blue-500 rounded-bl-3xl"></div>
+                  <div className="absolute bottom-0 right-0 w-16 h-16 border-b-8 border-r-8 border-blue-500 rounded-br-3xl"></div>
                   
                   <div className="absolute inset-0 flex items-center justify-center">
                     <div className="bg-black/40 backdrop-blur-md px-6 py-3 rounded-2xl border border-white/20">
-                       <p className="text-white font-black text-sm uppercase tracking-[0.2em] text-center">
-                         Keep Prescription Steady
+                       <p className="text-white font-black text-xs uppercase tracking-[0.2em] text-center">
+                         Keep Text within Frame
                        </p>
                     </div>
                   </div>
@@ -187,7 +188,7 @@ const PrescriptionUpload: React.FC<PrescriptionUploadProps> = ({ onUpload, isPro
           <div className="flex-1 flex flex-col p-8 bg-white">
             <div className="text-center mb-6">
                <h4 className="text-3xl font-black text-slate-800 tracking-tight">Confirm Details</h4>
-               <p className="text-slate-400 font-bold">Ensure handwriting is sharp and clear</p>
+               <p className="text-slate-400 font-bold">Ensure medicine names are clearly visible</p>
             </div>
             
             <div className="flex-1 relative rounded-[2.5rem] overflow-hidden border-4 border-slate-100 shadow-inner">
@@ -213,11 +214,11 @@ const PrescriptionUpload: React.FC<PrescriptionUploadProps> = ({ onUpload, isPro
       </div>
 
       <div className="mt-8 p-6 bg-slate-900 rounded-[2.5rem] text-white shadow-xl flex items-center gap-6 border-4 border-slate-800">
-         <div className="text-4xl">🔬</div>
+         <div className="text-4xl">🎓</div>
          <div>
             <h4 className="text-lg font-black mb-0.5">Clinical Recognition</h4>
             <p className="text-slate-400 font-bold text-sm leading-snug">
-               Our advanced AI maps medical abbreviations and validates dosages automatically.
+               Our AI uses a medical database to cross-reference common doctor's handwriting patterns.
             </p>
          </div>
       </div>

@@ -101,7 +101,7 @@ const useAuth = () => {
   const logout = useCallback(() => {
     setUser(null);
     localStorage.removeItem('scr_user');
-    localStorage.removeItem('scr_taken_keys'); // Clear app state on logout
+    localStorage.removeItem('scr_taken_keys'); 
   }, []);
 
   return { user, login, logout, isAuthenticated: !!user };
@@ -428,6 +428,7 @@ const LoginPage: React.FC<{ onLogin: (n: string) => void }> = ({ onLogin }) => {
 
 const ApiKeyGuard: React.FC<{ children: React.ReactNode }> = ({ children }) => {
   const [hasKey, setHasKey] = useState<boolean | null>(null);
+  const location = useLocation();
   
   const checkKey = useCallback(async () => {
     const win = window as any;
@@ -442,7 +443,7 @@ const ApiKeyGuard: React.FC<{ children: React.ReactNode }> = ({ children }) => {
 
   useEffect(() => {
     checkKey();
-  }, [checkKey]);
+  }, [checkKey, location.key]); // Re-check on navigation/refresh
 
   const handleKey = async () => { 
     if((window as any).aistudio) await (window as any).aistudio.openSelectKey(); 
@@ -469,6 +470,8 @@ const App: React.FC = () => {
   const handleLogout = () => {
     logout();
     setPatientInfo({ age: '', condition: '', language: 'en', caregiverRelationship: '' });
+    // Reset any lingering prescription analysis
+    window.location.reload(); 
   };
 
   return (

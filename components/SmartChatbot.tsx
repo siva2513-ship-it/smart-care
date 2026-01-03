@@ -12,7 +12,7 @@ interface SmartChatbotProps {
 }
 
 const SmartChatbot: React.FC<SmartChatbotProps> = ({ analysis, onSetReminders, activePreference, patientInfo, onTriggerCall }) => {
-  const [messages, setMessages] = useState<(ChatMessage & { sources?: any[] })[]>([]);
+  const [messages, setMessages] = useState<(ChatMessage & { sources?: any[], errorType?: 'key' | 'safety' | 'network' | 'quota' })[]>([]);
   const [userInput, setUserInput] = useState('');
   const [isTyping, setIsTyping] = useState(false);
   const [isSpeaking, setIsSpeaking] = useState(false);
@@ -23,6 +23,29 @@ const SmartChatbot: React.FC<SmartChatbotProps> = ({ analysis, onSetReminders, a
     if (patientInfo.language === 'hi') return hi;
     if (patientInfo.language === 'te') return te;
     return en;
+  };
+
+  const ERROR_STRINGS = {
+    key: {
+      en: "Your AI session has expired or the key is invalid. Please re-connect to continue.",
+      hi: "आपका एआई सत्र समाप्त हो गया है या कुंजी अमान्य है। कृपया जारी रखने के लिए पुनः कनेक्ट करें।",
+      te: "మీ AI సెషన్ ముగిసింది లేదా కీ చెల్లదు. కొనసాగించడానికి దయచేసి మళ్లీ కనెక్ట్ చేయండి."
+    },
+    safety: {
+      en: "I'm sorry, I cannot provide information on that topic for safety reasons. Please consult your doctor.",
+      hi: "क्षमा करें, सुरक्षा कारणों से मैं उस विषय पर जानकारी नहीं दे सकता। कृपया अपने डॉक्टर से सलाह लें।",
+      te: "క్షమించండి, భద్రతా కారణాల దృష్ట్యా నేను ఆ అంశంపై సమాచారాన్ని అందించలేను. దయచేసి మీ వైద్యుడిని సంప్రదించండి."
+    },
+    quota: {
+      en: "The AI is currently overloaded with requests. Please wait a few seconds and try again.",
+      hi: "एआई वर्तमान में अनुरोधों से भरा हुआ है। कृपया कुछ सेकंड प्रतीक्षा करें और पुनः प्रयास करें।",
+      te: "AI ప్రస్తుతం అభ్యర్థనలతో నిండిపోయింది. దయచేసి కొన్ని సెకన్లు వేచి ఉండి మళ్లీ ప్రయత్నించండి."
+    },
+    network: {
+      en: "I'm having trouble connecting to the healthcare cloud. Please check your internet connection.",
+      hi: "मुझे स्वास्थ्य सेवा क्लाउड से जुड़ने में समस्या हो रही है। कृपया अपना इंटरनेट कनेक्शन जांचें।",
+      te: "హెల్త్‌కేర్ క్లౌడ్‌కి కనెక్ట్ చేయడంలో నాకు సమస్య ఉంది. దయచేసి మీ ఇంటర్నెట్ కనెక్షన్‌ని తనిఖీ చేయండి."
+    }
   };
 
   const QUICK_CHIPS = [
@@ -40,26 +63,17 @@ const SmartChatbot: React.FC<SmartChatbotProps> = ({ analysis, onSetReminders, a
 
   const speak = (text: string) => {
     if (!('speechSynthesis' in window)) return;
-    
-    // Stop any existing speech
     window.speechSynthesis.cancel();
-    
     const utterance = new SpeechSynthesisUtterance(text);
-    
     switch (patientInfo.language) {
       case 'hi': utterance.lang = 'hi-IN'; break;
       case 'te': utterance.lang = 'te-IN'; break;
       default: utterance.lang = 'en-US'; break;
     }
-
     utterance.rate = 0.95;
     utterance.onstart = () => setIsSpeaking(true);
     utterance.onend = () => setIsSpeaking(false);
-    utterance.onerror = (e) => {
-      console.error("Speech error", e);
-      setIsSpeaking(false);
-    };
-
+    utterance.onerror = () => setIsSpeaking(false);
     window.speechSynthesis.speak(utterance);
   };
 
@@ -72,7 +86,6 @@ const SmartChatbot: React.FC<SmartChatbotProps> = ({ analysis, onSetReminders, a
     } else {
       welcome = `Hello, I'm your SmartCare assistant. I've noted ${analysis.medicines.length} medications in your prescription. How can I help you today?`;
     }
-    
     setMessages([{ id: 'welcome', text: welcome, sender: 'ai', timestamp: new Date() }]);
   }, [analysis, patientInfo.language]);
 
@@ -91,7 +104,7 @@ const SmartChatbot: React.FC<SmartChatbotProps> = ({ analysis, onSetReminders, a
     setMessages(prev => [...prev, newUserMessage]);
     setUserInput('');
     setIsTyping(true);
-    stopSpeaking(); // Stop AI speaking when user starts a new message
+    stopSpeaking();
 
     try {
       const result = await geminiService.askQuestion(text, analysis.medicines, currentHistory, patientInfo);
@@ -104,9 +117,27 @@ const SmartChatbot: React.FC<SmartChatbotProps> = ({ analysis, onSetReminders, a
         timestamp: new Date() 
       }]);
       speak(result.text);
-    } catch (err) {
-      const errorMsg = t("I'm having trouble connecting. Please check your internet.", "कनेक्शन में समस्या आ रही है।", "కనెక్షన్ సమస్య ఉంది.");
-      setMessages(prev => [...prev, { id: 'err', text: errorMsg, sender: 'ai', timestamp: new Date() }]);
+    } catch (err: any) {
+      const errorMsg = err?.message || String(err);
+      let type: 'key' | 'safety' | 'network' | 'quota' = 'network';
+      
+      if (errorMsg.includes("Requested entity was not found") || errorMsg.includes("API_KEY_INVALID")) {
+        type = 'key';
+      } else if (errorMsg.includes("safety") || errorMsg.includes("finishReason: SAFETY")) {
+        type = 'safety';
+      } else if (errorMsg.includes("429") || errorMsg.includes("quota") || errorMsg.includes("exhausted")) {
+        type = 'quota';
+      }
+
+      const displayMsg = ERROR_STRINGS[type][patientInfo.language] || ERROR_STRINGS[type].en;
+      
+      setMessages(prev => [...prev, { 
+        id: `err-${Date.now()}`, 
+        text: displayMsg, 
+        sender: 'ai', 
+        timestamp: new Date(),
+        errorType: type
+      }]);
     } finally {
       setIsTyping(false);
     }
@@ -116,6 +147,15 @@ const SmartChatbot: React.FC<SmartChatbotProps> = ({ analysis, onSetReminders, a
     if (!welcomeSpoken && messages.length > 0) {
       speak(messages[0].text);
       setWelcomeSpoken(true);
+    }
+  };
+
+  const handleReconnectKey = async (e: React.MouseEvent) => {
+    e.stopPropagation();
+    const win = window as any;
+    if (win.aistudio && typeof win.aistudio.openSelectKey === 'function') {
+      await win.aistudio.openSelectKey();
+      handleSendMessage(t("The key is re-connected. Please answer my previous question.", "कुंजी पुनः कनेक्ट हो गई है। कृपया मेरे पिछले प्रश्न का उत्तर दें।", "కీ మళ్లీ కనెక్ట్ చేయబడింది. దయచేసి నా మునుపటి ప్రశ్నకు సమాధానం ఇవ్వండి."));
     }
   };
 
@@ -164,10 +204,28 @@ const SmartChatbot: React.FC<SmartChatbotProps> = ({ analysis, onSetReminders, a
             )}
             <div className={`max-w-[85%] p-5 rounded-3xl text-[13px] font-bold leading-relaxed shadow-sm transition-all ${
               msg.sender === 'ai' 
-                ? 'bg-white text-slate-800 rounded-bl-none border border-slate-200' 
+                ? (msg.errorType ? 'bg-red-50 text-red-800 border-red-200' : 'bg-white text-slate-800 border-slate-200')
                 : 'bg-blue-600 text-white rounded-br-none shadow-blue-200'
-            }`}>
+            } rounded-bl-none border`}>
               {msg.text}
+              
+              {/* Error Recovery Actions */}
+              {msg.errorType === 'key' && (
+                <button 
+                  onClick={handleReconnectKey}
+                  className="mt-3 flex items-center gap-2 px-4 py-2 bg-red-600 text-white text-[10px] font-black uppercase rounded-xl hover:bg-red-700 shadow-md transition-all active:scale-95 w-full justify-center"
+                >
+                  🔑 {t("Connect AI Key", "एआई कुंजी कनेक्ट करें", "AI కీని కనెక్ట్ చేయండి")}
+                </button>
+              )}
+              {msg.errorType === 'network' && (
+                <button 
+                  onClick={() => handleSendMessage(t("Retry connection", "पुनः प्रयास करें", "మళ్ళీ ప్రయత్నించండి"))}
+                  className="mt-3 flex items-center gap-2 px-4 py-2 bg-slate-800 text-white text-[10px] font-black uppercase rounded-xl hover:bg-blue-600 transition-all w-full justify-center"
+                >
+                  🔄 {t("Retry Now", "अभी पुनः प्रयास करें", "ఇప్పుడే ప్రయత్నించండి")}
+                </button>
+              )}
               
               {/* Citations / Grounding */}
               {msg.sources && msg.sources.length > 0 && (
