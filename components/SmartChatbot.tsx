@@ -50,6 +50,15 @@ const SmartChatbot: React.FC<SmartChatbotProps> = ({ analysis, onSetReminders, a
     if (scrollRef.current) scrollRef.current.scrollTo({ top: scrollRef.current.scrollHeight, behavior: 'smooth' });
   }, [messages, isTyping]);
 
+  const handleReconnectKey = async (e: React.MouseEvent) => {
+    e.stopPropagation();
+    const win = window as any;
+    if (win.aistudio && typeof win.aistudio.openSelectKey === 'function') {
+      await win.aistudio.openSelectKey();
+      handleSendMessage(t("The key is re-connected. Please answer my previous question.", "कुंजी पुनः कनेक्ट हो गई है। कृपया मेरे पिछले प्रश्न का उत्तर दें।", "కీ మళ్లీ కనెక్ట్ చేయబడింది. దయచేసి నా మునుపటి ప్రశ్నకు సమాధానం ఇవ్వండి."));
+    }
+  };
+
   const handleSendMessage = async (text: string) => {
     if (!text.trim() || isTyping) return;
     setMessages(prev => [...prev, { id: Date.now().toString(), text, sender: 'user', timestamp: new Date() }]);
@@ -61,7 +70,22 @@ const SmartChatbot: React.FC<SmartChatbotProps> = ({ analysis, onSetReminders, a
       setMessages(prev => [...prev, { id: Date.now().toString(), text: result.text, sources: result.sources, sender: 'ai', timestamp: new Date() }]);
       speak(result.text);
     } catch (err: any) {
-      setMessages(prev => [...prev, { id: Date.now().toString(), text: "I'm having trouble connecting. Check your AI key.", sender: 'ai', timestamp: new Date(), errorType: 'key' }]);
+      const errorMsg = err?.message || String(err);
+      let errorType: any = 'network';
+      let displayMsg = t("I'm having trouble connecting to the healthcare server.", "सर्वर से जुड़ने में समस्या हो रही है।", "సర్వర్‌కు కనెక్ట్ చేయడంలో సమస్య ఉంది.");
+
+      if (errorMsg.includes("Requested entity was not found") || errorMsg.includes("API_KEY_INVALID")) {
+        errorType = 'key';
+        displayMsg = t("Your AI key has disconnected. Please reconnect to continue our medical session.", "आपकी एआई कुंजी डिस्कनेक्ट हो गई है। कृपया पुनः कनेक्ट करें।", "మీ AI కీ డిస్‌కనెక్ట్ అయింది. దయచేసి మళ్లీ కనెక్ట్ చేయండి.");
+      }
+
+      setMessages(prev => [...prev, { 
+        id: Date.now().toString(), 
+        text: displayMsg, 
+        sender: 'ai', 
+        timestamp: new Date(), 
+        errorType: errorType 
+      }]);
     } finally {
       setIsTyping(false);
     }
@@ -89,10 +113,19 @@ const SmartChatbot: React.FC<SmartChatbotProps> = ({ analysis, onSetReminders, a
         {messages.map(msg => (
           <div key={msg.id} className={`flex flex-col ${msg.sender === 'ai' ? 'items-start' : 'items-end'} animate-in slide-in-from-bottom-2`}>
             <div className={`max-w-[85%] p-5 rounded-[2rem] text-[14px] font-bold leading-relaxed shadow-sm ${
-              msg.sender === 'ai' ? 'bg-white text-slate-800 border border-slate-200 rounded-bl-none' : 'bg-blue-600 text-white rounded-br-none'
+              msg.sender === 'ai' ? (msg.errorType === 'key' ? 'bg-red-50 text-red-900 border-red-200' : 'bg-white text-slate-800 border border-slate-200 rounded-bl-none') : 'bg-blue-600 text-white rounded-br-none'
             }`}>
               {msg.text}
               
+              {msg.errorType === 'key' && (
+                <button 
+                  onClick={handleReconnectKey}
+                  className="mt-4 w-full py-3 bg-red-600 text-white rounded-xl text-[10px] font-black uppercase tracking-widest shadow-lg active:scale-95"
+                >
+                  Reconnect Key 🔑
+                </button>
+              )}
+
               {msg.sources && msg.sources.length > 0 && (
                 <div className="mt-4 pt-4 border-t border-slate-100 space-y-2">
                   <p className="text-[10px] font-black text-slate-400 uppercase tracking-widest flex items-center gap-2">

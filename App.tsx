@@ -434,29 +434,78 @@ const ApiKeyGuard: React.FC<{ children: React.ReactNode }> = ({ children }) => {
     const win = window as any;
     if (!win.aistudio) { setHasKey(true); return; }
     try { 
+      // Robust check for existing key selection
       const s = await win.aistudio.hasSelectedApiKey(); 
       setHasKey(s); 
-    } catch { 
+    } catch (e) { 
+      console.warn("Key check failed, assuming fallback mode", e);
       setHasKey(true); 
     }
   }, []);
 
   useEffect(() => {
     checkKey();
-  }, [checkKey, location.key]); // Re-check on navigation/refresh
+  }, [checkKey, location.key]);
 
   const handleKey = async () => { 
-    if((window as any).aistudio) await (window as any).aistudio.openSelectKey(); 
-    setHasKey(true); 
+    const win = window as any;
+    if (win.aistudio && typeof win.aistudio.openSelectKey === 'function') {
+      try {
+        await win.aistudio.openSelectKey();
+        // CRITICAL: Assume success immediately to avoid race conditions with background key injection
+        setHasKey(true); 
+      } catch (err) {
+        console.error("Key selection failed", err);
+        setHasKey(true); // Proceed anyway to let service-level error handling take over
+      }
+    } else {
+      setHasKey(true);
+    }
   };
 
   if (hasKey === null) return null;
   if (!hasKey) return (
-    <div className="min-h-screen bg-slate-900 flex items-center justify-center p-6">
-      <div className="max-w-xs bg-white p-12 rounded-[3rem] text-center shadow-2xl">
-        <h2 className="text-2xl font-black mb-6">Connect AI Shield</h2>
-        <p className="text-slate-500 font-bold mb-8">Please select an API key to activate the clinical scanning engine.</p>
-        <button onClick={handleKey} className="w-full py-5 bg-blue-600 text-white rounded-2xl font-black shadow-lg">Activate Now</button>
+    <div className="min-h-screen bg-slate-950 flex items-center justify-center p-6 relative overflow-hidden">
+      {/* Background Decor */}
+      <div className="absolute top-0 left-0 w-full h-full opacity-10 pointer-events-none">
+        <div className="absolute top-1/4 left-1/4 w-96 h-96 bg-blue-600 rounded-full blur-[120px]"></div>
+        <div className="absolute bottom-1/4 right-1/4 w-96 h-96 bg-indigo-600 rounded-full blur-[120px]"></div>
+      </div>
+
+      <div className="max-w-md w-full bg-white p-12 rounded-[4rem] text-center shadow-3xl border-8 border-slate-900/5 relative z-10 animate-in zoom-in-95 duration-700">
+        <div className="w-24 h-24 bg-blue-600 rounded-[2.5rem] mx-auto flex items-center justify-center text-white text-5xl font-black mb-8 shadow-2xl border-4 border-slate-50">🔑</div>
+        <h2 className="text-4xl font-black mb-6 tracking-tighter text-slate-900 leading-tight">Activate Medical Intelligence</h2>
+        <p className="text-slate-500 font-bold mb-8 text-lg leading-relaxed">
+          Please select a paid API key to enable high-accuracy clinical scanning and real-time medical reasoning.
+        </p>
+        
+        <div className="bg-slate-50 p-6 rounded-3xl mb-10 border-2 border-slate-100 text-left">
+           <p className="text-[10px] font-black text-slate-400 uppercase tracking-widest mb-3 px-1">Mandatory Requirement</p>
+           <ul className="space-y-3">
+              <li className="flex gap-3 text-xs font-bold text-slate-600">
+                <span className="text-blue-500">✓</span> Paid GCP Project required for Gemini 3 Pro
+              </li>
+              <li className="flex gap-3 text-xs font-bold text-slate-600">
+                <span className="text-blue-500">✓</span> Enable billing in your Google AI Studio console
+              </li>
+           </ul>
+        </div>
+
+        <button 
+          onClick={handleKey} 
+          className="w-full py-6 bg-slate-900 text-white rounded-3xl text-xl font-black shadow-2xl hover:bg-blue-600 hover:-translate-y-1 active:translate-y-0 transition-all mb-6"
+        >
+          Select Project Key
+        </button>
+
+        <a 
+          href="https://ai.google.dev/gemini-api/docs/billing" 
+          target="_blank" 
+          rel="noopener noreferrer"
+          className="text-xs font-black text-blue-600 uppercase tracking-widest hover:underline decoration-2 underline-offset-4"
+        >
+          View Billing Documentation ↗
+        </a>
       </div>
     </div>
   );
@@ -470,7 +519,7 @@ const App: React.FC = () => {
   const handleLogout = () => {
     logout();
     setPatientInfo({ age: '', condition: '', language: 'en', caregiverRelationship: '' });
-    // Reset any lingering prescription analysis
+    // Reset state and clear session to ensure KeyGuard triggers on re-entry
     window.location.reload(); 
   };
 

@@ -3,15 +3,23 @@ import { GoogleGenAI, Type } from "@google/genai";
 import { PrescriptionAnalysis, Medicine, PatientInfo, ChatMessage, Language } from "../types";
 
 export class GeminiService {
+  /**
+   * Enhanced error handler that detects API Key session loss.
+   */
   private async handleApiError(error: any): Promise<never> {
-    console.error("Gemini API Error:", error);
+    console.error("Gemini API Error Context:", error);
     const errorMessage = error?.message || String(error);
     
-    if (errorMessage.includes("Requested entity was not found") && typeof window !== 'undefined') {
-      const win = window as any;
-      if (win.aistudio && typeof win.aistudio.openSelectKey === 'function') {
-        console.warn("API Key session lost. Re-prompting user.");
-        await win.aistudio.openSelectKey();
+    // Check for specific session-related errors
+    if (errorMessage.includes("Requested entity was not found") || errorMessage.includes("API_KEY_INVALID")) {
+      console.warn("API Key session lost or invalid. Triggering recovery.");
+      if (typeof window !== 'undefined') {
+        const win = window as any;
+        // Prompt for key selection if available
+        if (win.aistudio && typeof win.aistudio.openSelectKey === 'function') {
+          await win.aistudio.openSelectKey();
+          // We don't refresh here to avoid losing user progress, but the next call will use the new key.
+        }
       }
     }
     throw error;
@@ -26,6 +34,7 @@ export class GeminiService {
   }
 
   async analyzePrescription(base64Image: string, patientInfo: PatientInfo): Promise<PrescriptionAnalysis> {
+    // ALWAYS instantiate fresh to capture the most recent API key from the environment
     const ai = new GoogleGenAI({ apiKey: process.env.API_KEY });
     const langName = this.getLanguageName(patientInfo.language);
     
