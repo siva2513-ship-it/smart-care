@@ -3,10 +3,6 @@ import { GoogleGenAI, Type } from "@google/genai";
 import { PrescriptionAnalysis, Medicine, PatientInfo, ChatMessage, Language } from "../types";
 
 export class GeminiService {
-  /**
-   * Helper to handle API errors, specifically the "Requested entity was not found" 
-   * which indicates an issue with the API key session.
-   */
   private async handleApiError(error: any): Promise<never> {
     console.error("Gemini API Error:", error);
     const errorMessage = error?.message || String(error);
@@ -30,37 +26,22 @@ export class GeminiService {
   }
 
   async analyzePrescription(base64Image: string, patientInfo: PatientInfo): Promise<PrescriptionAnalysis> {
-    // ALWAYS instantiate fresh to ensure we use the latest API key from the environment
     const ai = new GoogleGenAI({ apiKey: process.env.API_KEY });
     const langName = this.getLanguageName(patientInfo.language);
     
-    const systemInstruction = `YOU ARE A WORLD-CLASS CLINICAL PHARMACIST AND OCR HANDWRITING ANALYST.
+    const systemInstruction = `YOU ARE AN ELITE CLINICAL PHARMACY OCR SYSTEM.
+    
+    CRITICAL PROTOCOL:
+    1. CLINICAL DISAMBIGUATION: Doctors often write 'm' like 'n' or 'a' like 'o'. Cross-reference all extracted text with a pharmaceutical database. If you see "Anoxicillun", correct it to "Amoxicillin".
+    2. DOSE SANITY CHECK: Flag if a dose seems unusually high for a ${patientInfo.age} year old.
+    3. ABBREVIATION EXPANSION: Convert all Latin sigs (OD, BID, TID, AC, PC) into plain ${langName} instructions.
+    4. ACCESSIBILITY: Use warm, encouraging language. Avoid medical jargon where possible.
 
-PRIMARY MISSION: Convert handwritten prescriptions into structured digital data with 100% safety.
-
-OCR REASONING PROTOCOL:
-1. CLINICAL DISAMBIGUATION: If a handwritten letter is ambiguous (e.g., 'm' vs 'n'), cross-reference it with your medical knowledge of common drugs. If it looks like 'Anoxicillin', correct it to 'Amoxicillin'.
-2. LATIN ABBREVIATION EXPANSION:
-   - OD/QD -> Once Daily
-   - BD/BID -> Twice Daily
-   - TID/TDS -> Thrice Daily
-   - QID -> Four times Daily
-   - AC -> Before Food
-   - PC -> After Food
-   - HS -> At Bedtime
-3. DOSAGE VALIDATION: Check if the dosage (e.g., 500mg) is typical for the medicine identified.
-4. LINGUISTIC ADAPTATION: Translate instructions for the patient into warm, simple, and clear ${langName}. Use analogies if helpful.
-
-PATIENT PROFILE:
-- Age: ${patientInfo.age}
-- Known Conditions: ${patientInfo.condition}
-
-OUTPUT SCHEMA:
-- medicines: Array of objects.
-- timing: MUST be one or more of ["Morning", "Afternoon", "Evening", "Night"].
-- color: Describe the pill color for visual confirmation (e.g., "white", "blue/white capsule").
-- instructions: Simple, actionable steps for the user in ${langName}.
-- summary: A comforting 2-sentence health summary in ${langName}.`;
+    OUTPUT SCHEMA:
+    - medicines: List of detected medications.
+    - timing: MUST be subset of ["Morning", "Afternoon", "Evening", "Night"].
+    - color: Describe the pill color for the user to find it easily.
+    - instructions: Numbered steps in ${langName}.`;
 
     try {
       const response = await ai.models.generateContent({
@@ -73,12 +54,12 @@ OUTPUT SCHEMA:
                 data: base64Image.split(',')[1] || base64Image
               }
             },
-            { text: `Extract all medical data from this prescription. Identify names, dosages, and timings. Provide instructions in ${langName}.` }
+            { text: `Scan this prescription for a ${patientInfo.age}yo patient. Provide clear ${langName} instructions.` }
           ]
         },
         config: {
-          systemInstruction: systemInstruction,
-          thinkingConfig: { thinkingBudget: 12000 }, // High budget for handwriting analysis
+          systemInstruction,
+          thinkingConfig: { thinkingBudget: 15000 },
           responseMimeType: "application/json",
           responseSchema: {
             type: Type.OBJECT,
@@ -104,7 +85,7 @@ OUTPUT SCHEMA:
         }
       });
 
-      const text = response.text || '{"medicines": [], "summary": "Scanning failed."}';
+      const text = response.text || '{"medicines": [], "summary": "Scanning error"}';
       const result = JSON.parse(text);
       
       return {
@@ -129,26 +110,19 @@ OUTPUT SCHEMA:
         model: 'gemini-3-flash-preview',
         config: {
           tools: [{ googleSearch: {} }],
-          systemInstruction: `You are a helpful and extremely safe Medical AI Assistant for an elderly patient.
-
-PATIENT PROFILE:
-- Age: ${patientInfo.age}
-- Condition: ${patientInfo.condition}
-- Language: ${langName}
-
-ACTIVE MEDICATIONS:
-${medicines.map(m => `- ${m.name} (${m.dosage}): ${m.instructions}`).join('\n')}
-
-GUIDELINES:
-1. ALWAYS use Google Search to verify contraindications or specific side effects of the drugs listed.
-2. If the user reports severe pain, breathing issues, or chest pain, tell them to call emergency services IMMEDIATELY.
-3. Never recommend changing a dose. Tell them to consult their doctor.
-4. Respond strictly in ${langName}. Be warm and brief.`
+          systemInstruction: `You are a warm Medical Safety Assistant. 
+          Current Meds: ${medicines.map(m => m.name).join(', ')}.
+          Patient: ${patientInfo.age}yo with ${patientInfo.condition}.
+          
+          RULES:
+          1. Use Google Search to verify drug interactions.
+          2. ALWAYS warn that you are an AI and they must consult a doctor for emergencies.
+          3. Respond strictly in ${langName}.
+          4. If symptoms sound serious, advise immediate ER/Doctor visit.`
         }
       });
 
       const response = await chat.sendMessage({ message: query });
-
       return {
         text: response.text || "...",
         sources: response.candidates?.[0]?.groundingMetadata?.groundingChunks || []

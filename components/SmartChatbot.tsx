@@ -25,217 +25,84 @@ const SmartChatbot: React.FC<SmartChatbotProps> = ({ analysis, onSetReminders, a
     return en;
   };
 
-  const ERROR_STRINGS = {
-    key: {
-      en: "Your AI session has expired or the key is invalid. Please re-connect to continue.",
-      hi: "आपका एआई सत्र समाप्त हो गया है या कुंजी अमान्य है। कृपया जारी रखने के लिए पुनः कनेक्ट करें।",
-      te: "మీ AI సెషన్ ముగిసింది లేదా కీ చెల్లదు. కొనసాగించడానికి దయచేసి మళ్లీ కనెక్ట్ చేయండి."
-    },
-    safety: {
-      en: "I'm sorry, I cannot provide information on that topic for safety reasons. Please consult your doctor.",
-      hi: "क्षमा करें, सुरक्षा कारणों से मैं उस विषय पर जानकारी नहीं दे सकता। कृपया अपने डॉक्टर से सलाह लें।",
-      te: "క్షమించండి, భద్రతా కారణాల దృష్ట్యా నేను ఆ అంశంపై సమాచారాన్ని అందించలేను. దయచేసి మీ వైద్యుడిని సంప్రదించండి."
-    },
-    quota: {
-      en: "The AI is currently overloaded with requests. Please wait a few seconds and try again.",
-      hi: "एआई वर्तमान में अनुरोधों से भरा हुआ है। कृपया कुछ सेकंड प्रतीक्षा करें और पुनः प्रयास करें।",
-      te: "AI ప్రస్తుతం అభ్యర్థనలతో నిండిపోయింది. దయచేసి కొన్ని సెకన్లు వేచి ఉండి మళ్లీ ప్రయత్నించండి."
-    },
-    network: {
-      en: "I'm having trouble connecting to the healthcare cloud. Please check your internet connection.",
-      hi: "मुझे स्वास्थ्य सेवा क्लाउड से जुड़ने में समस्या हो रही है। कृपया अपना इंटरनेट कनेक्शन जांचें।",
-      te: "హెల్త్‌కేర్ క్లౌడ్‌కి కనెక్ట్ చేయడంలో నాకు సమస్య ఉంది. దయచేసి మీ ఇంటర్నెట్ కనెక్షన్‌ని తనిఖీ చేయండి."
-    }
-  };
-
-  const QUICK_CHIPS = [
-    { label: t("Side Effects", "दुष्प्रभाव", "దుష్ప్రభావాలు"), query: t("What are the side effects of these medicines?", "इन दवाओं के दुष्प्रभाव क्या हैं?", "ఈ మందుల వల్ల కలిగే దుష్ప్రభావాలు ఏమిటి?") },
-    { label: t("Missed Dose?", "खुराक छूट गई?", "డోస్ మిస్ అయ్యారా?"), query: t("What should I do if I miss a dose?", "अगर मेरी खुराक छूट जाए तो मुझे क्या करना चाहिए?", "నేను డోస్ మిస్ అయితే ఏమి చేయాలి?") },
-    { label: t("Diet Rules", "आहार नियम", "ఆహార నియమాలు"), query: t("Are there any food restrictions for these pills?", "क्या इन गोलियों के लिए कोई भोजन प्रतिबंध हैं?", "ఈ మాత్రల కోసం ఏవైనా ఆహార నియమాలు ఉన్నాయా?") }
-  ];
-
-  const stopSpeaking = () => {
-    if ('speechSynthesis' in window) {
-      window.speechSynthesis.cancel();
-      setIsSpeaking(false);
-    }
-  };
-
   const speak = (text: string) => {
     if (!('speechSynthesis' in window)) return;
     window.speechSynthesis.cancel();
     const utterance = new SpeechSynthesisUtterance(text);
-    switch (patientInfo.language) {
-      case 'hi': utterance.lang = 'hi-IN'; break;
-      case 'te': utterance.lang = 'te-IN'; break;
-      default: utterance.lang = 'en-US'; break;
-    }
-    utterance.rate = 0.95;
+    const locale = patientInfo.language === 'hi' ? 'hi-IN' : patientInfo.language === 'te' ? 'te-IN' : 'en-US';
+    utterance.lang = locale;
+    utterance.rate = 0.9;
     utterance.onstart = () => setIsSpeaking(true);
     utterance.onend = () => setIsSpeaking(false);
-    utterance.onerror = () => setIsSpeaking(false);
     window.speechSynthesis.speak(utterance);
   };
 
   useEffect(() => {
-    let welcome = "";
-    if (patientInfo.language === 'hi') {
-      welcome = `नमस्ते, मैं आपका स्मार्टकेयर असिस्टेंट हूँ। मैंने आपके पर्चे में ${analysis.medicines.length} दवाएं देखी हैं। क्या आप इनके बारे में कुछ पूछना चाहते हैं?`;
-    } else if (patientInfo.language === 'te') {
-      welcome = `నమస్కారం, నేను మీ స్మార్ట్‌కేర్ అసిస్టెంట్‌ని. మీ ప్రిస్క్రిప్షన్‌లో ${analysis.medicines.length} మందులను నేను చూశాను. మీరు వీటి గురించి ఏదైనా అడగాలనుకుంటున్నారా?`;
-    } else {
-      welcome = `Hello, I'm your SmartCare assistant. I've noted ${analysis.medicines.length} medications in your prescription. How can I help you today?`;
-    }
+    const welcome = t(
+      `Hi! I'm your SmartCare AI. I've analyzed your ${analysis.medicines.length} medicines. Ask me anything about them!`,
+      `नमस्ते! मैं आपका स्मार्टकेयर एआई हूँ। मैंने आपकी ${analysis.medicines.length} दवाओं का विश्लेषण किया है।`,
+      `హలో! నేను మీ స్మార్ట్‌కేర్ AI. మీ ${analysis.medicines.length} మందులను విశ్లేషించాను.`
+    );
     setMessages([{ id: 'welcome', text: welcome, sender: 'ai', timestamp: new Date() }]);
   }, [analysis, patientInfo.language]);
 
   useEffect(() => {
-    if (scrollRef.current) {
-      scrollRef.current.scrollTo({ top: scrollRef.current.scrollHeight, behavior: 'smooth' });
-    }
+    if (scrollRef.current) scrollRef.current.scrollTo({ top: scrollRef.current.scrollHeight, behavior: 'smooth' });
   }, [messages, isTyping]);
 
   const handleSendMessage = async (text: string) => {
     if (!text.trim() || isTyping) return;
-    
-    const newUserMessage: ChatMessage = { id: Date.now().toString(), text, sender: 'user', timestamp: new Date() };
-    const currentHistory = [...messages];
-    
-    setMessages(prev => [...prev, newUserMessage]);
+    setMessages(prev => [...prev, { id: Date.now().toString(), text, sender: 'user', timestamp: new Date() }]);
     setUserInput('');
     setIsTyping(true);
-    stopSpeaking();
 
     try {
-      const result = await geminiService.askQuestion(text, analysis.medicines, currentHistory, patientInfo);
-      const aiMsgId = (Date.now() + 1).toString();
-      setMessages(prev => [...prev, { 
-        id: aiMsgId, 
-        text: result.text, 
-        sources: result.sources, 
-        sender: 'ai', 
-        timestamp: new Date() 
-      }]);
+      const result = await geminiService.askQuestion(text, analysis.medicines, messages, patientInfo);
+      setMessages(prev => [...prev, { id: Date.now().toString(), text: result.text, sources: result.sources, sender: 'ai', timestamp: new Date() }]);
       speak(result.text);
     } catch (err: any) {
-      const errorMsg = err?.message || String(err);
-      let type: 'key' | 'safety' | 'network' | 'quota' = 'network';
-      
-      if (errorMsg.includes("Requested entity was not found") || errorMsg.includes("API_KEY_INVALID")) {
-        type = 'key';
-      } else if (errorMsg.includes("safety") || errorMsg.includes("finishReason: SAFETY")) {
-        type = 'safety';
-      } else if (errorMsg.includes("429") || errorMsg.includes("quota") || errorMsg.includes("exhausted")) {
-        type = 'quota';
-      }
-
-      const displayMsg = ERROR_STRINGS[type][patientInfo.language] || ERROR_STRINGS[type].en;
-      
-      setMessages(prev => [...prev, { 
-        id: `err-${Date.now()}`, 
-        text: displayMsg, 
-        sender: 'ai', 
-        timestamp: new Date(),
-        errorType: type
-      }]);
+      setMessages(prev => [...prev, { id: Date.now().toString(), text: "I'm having trouble connecting. Check your AI key.", sender: 'ai', timestamp: new Date(), errorType: 'key' }]);
     } finally {
       setIsTyping(false);
     }
   };
 
-  const handleInitialInteraction = () => {
-    if (!welcomeSpoken && messages.length > 0) {
-      speak(messages[0].text);
-      setWelcomeSpoken(true);
-    }
-  };
-
-  const handleReconnectKey = async (e: React.MouseEvent) => {
-    e.stopPropagation();
-    const win = window as any;
-    if (win.aistudio && typeof win.aistudio.openSelectKey === 'function') {
-      await win.aistudio.openSelectKey();
-      handleSendMessage(t("The key is re-connected. Please answer my previous question.", "कुंजी पुनः कनेक्ट हो गई है। कृपया मेरे पिछले प्रश्न का उत्तर दें।", "కీ మళ్లీ కనెక్ట్ చేయబడింది. దయచేసి నా మునుపటి ప్రశ్నకు సమాధానం ఇవ్వండి."));
-    }
-  };
-
   return (
-    <div 
-      className="bg-white rounded-[3rem] border-2 border-slate-100 shadow-2xl overflow-hidden flex flex-col h-[600px] transition-all"
-      onClick={handleInitialInteraction}
-    >
-      {/* Header */}
-      <div className="p-6 bg-slate-900 text-white flex items-center justify-between">
+    <div className="bg-white rounded-[3.5rem] border-2 border-slate-100 shadow-2xl overflow-hidden flex flex-col h-[650px] transition-all">
+      <div className="p-7 bg-slate-900 text-white flex items-center justify-between shadow-lg">
         <div className="flex items-center gap-4">
-          <div className="relative">
-             <div className="w-12 h-12 bg-blue-600 rounded-2xl flex items-center justify-center text-2xl shadow-lg border border-white/20">🤖</div>
-             <div className="absolute -bottom-1 -right-1 w-4 h-4 bg-emerald-500 border-2 border-slate-900 rounded-full animate-pulse"></div>
+          <div className="w-14 h-14 bg-blue-600 rounded-2xl flex items-center justify-center text-3xl shadow-lg border border-white/20 relative">
+             🤖
+             <div className="absolute -bottom-1 -right-1 w-4 h-4 bg-emerald-500 border-2 border-slate-900 rounded-full"></div>
           </div>
           <div>
-            <h2 className="text-sm font-black tracking-tight">{t('Health AI Assistant', 'स्वास्थ्य एआई सहायक', 'ఆరోగ్య AI సహాయకుడు')}</h2>
-            <div className="flex items-center gap-2">
-              <span className="text-[9px] font-black text-blue-400 uppercase tracking-widest">{t('Always Online', 'हमेशा ऑनलाइन', 'ఎల్లప్పుడూ ఆన్‌లైన్')}</span>
-            </div>
+            <h2 className="text-base font-black tracking-tight">{t('Health Safety Assistant', 'स्वास्थ्य सुरक्षा सहायक', 'ఆరోగ్య రక్షణ సహాయకుడు')}</h2>
+            <span className="text-[10px] font-black text-blue-400 uppercase tracking-widest">{t('Clinical AI Active', 'क्लिनिकल एआई सक्रिय', 'క్లినికల్ AI సక్రియంగా ఉంది')}</span>
           </div>
         </div>
         {isSpeaking && (
-           <button onClick={(e) => { e.stopPropagation(); stopSpeaking(); }} className="flex items-center gap-3 px-4 py-2 bg-red-600/10 border border-red-500/30 rounded-xl hover:bg-red-600 transition-all group">
-              <div className="flex gap-1 h-3 items-end">
-                {[...Array(4)].map((_, i) => (
-                  <div key={i} className="w-1 bg-red-500 animate-voice-pulse" style={{ height: `${40 + Math.random()*60}%`, animationDelay: `${i*0.1}s` }}></div>
-                ))}
-              </div>
-              <span className="text-[10px] font-black uppercase text-red-500 group-hover:text-white">{t('Mute', 'चुप करें', 'మ్యూట్')}</span>
-           </button>
+           <button onClick={() => window.speechSynthesis.cancel()} className="w-10 h-10 bg-red-600/20 border border-red-500/30 rounded-full flex items-center justify-center text-red-500 animate-pulse">✕</button>
         )}
       </div>
 
-      {/* Chat Messages */}
       <div ref={scrollRef} className="flex-1 p-6 space-y-6 overflow-y-auto bg-slate-50/50 custom-scrollbar">
-        {!welcomeSpoken && (
-          <button onClick={(e) => { e.stopPropagation(); handleInitialInteraction(); }} className="w-full py-2 bg-blue-50 text-blue-600 rounded-xl text-[10px] font-black uppercase tracking-widest border border-blue-100 animate-pulse">
-            Click to activate Voice Assistant 🔊
-          </button>
-        )}
         {messages.map(msg => (
-          <div key={msg.id} className={`flex flex-col ${msg.sender === 'ai' ? 'items-start' : 'items-end'} group animate-in slide-in-from-bottom-2 duration-300`}>
-            {msg.sender === 'ai' && (
-              <span className="text-[9px] font-black text-slate-400 uppercase tracking-widest mb-1 ml-4">{t('Assistant', 'सहायक', 'సహాయకుడు')}</span>
-            )}
-            <div className={`max-w-[85%] p-5 rounded-3xl text-[13px] font-bold leading-relaxed shadow-sm transition-all ${
-              msg.sender === 'ai' 
-                ? (msg.errorType ? 'bg-red-50 text-red-800 border-red-200' : 'bg-white text-slate-800 border-slate-200')
-                : 'bg-blue-600 text-white rounded-br-none shadow-blue-200'
-            } rounded-bl-none border`}>
+          <div key={msg.id} className={`flex flex-col ${msg.sender === 'ai' ? 'items-start' : 'items-end'} animate-in slide-in-from-bottom-2`}>
+            <div className={`max-w-[85%] p-5 rounded-[2rem] text-[14px] font-bold leading-relaxed shadow-sm ${
+              msg.sender === 'ai' ? 'bg-white text-slate-800 border border-slate-200 rounded-bl-none' : 'bg-blue-600 text-white rounded-br-none'
+            }`}>
               {msg.text}
               
-              {/* Error Recovery Actions */}
-              {msg.errorType === 'key' && (
-                <button 
-                  onClick={handleReconnectKey}
-                  className="mt-3 flex items-center gap-2 px-4 py-2 bg-red-600 text-white text-[10px] font-black uppercase rounded-xl hover:bg-red-700 shadow-md transition-all active:scale-95 w-full justify-center"
-                >
-                  🔑 {t("Connect AI Key", "एआई कुंजी कनेक्ट करें", "AI కీని కనెక్ట్ చేయండి")}
-                </button>
-              )}
-              {msg.errorType === 'network' && (
-                <button 
-                  onClick={() => handleSendMessage(t("Retry connection", "पुनः प्रयास करें", "మళ్ళీ ప్రయత్నించండి"))}
-                  className="mt-3 flex items-center gap-2 px-4 py-2 bg-slate-800 text-white text-[10px] font-black uppercase rounded-xl hover:bg-blue-600 transition-all w-full justify-center"
-                >
-                  🔄 {t("Retry Now", "अभी पुनः प्रयास करें", "ఇప్పుడే ప్రయత్నించండి")}
-                </button>
-              )}
-              
-              {/* Citations / Grounding */}
               {msg.sources && msg.sources.length > 0 && (
                 <div className="mt-4 pt-4 border-t border-slate-100 space-y-2">
-                  <p className="text-[9px] font-black text-slate-400 uppercase tracking-widest">{t('Medical Evidence', 'चिकित्सा प्रमाण', 'వైద్య ఆధారాలు')}</p>
-                  <div className="flex flex-col gap-1.5">
+                  <p className="text-[10px] font-black text-slate-400 uppercase tracking-widest flex items-center gap-2">
+                     <span className="text-sm">🔍</span> {t('Verified Sources', 'सत्यापित स्रोत', 'ధృవీకరించబడిన మూలాధారాలు')}
+                  </p>
+                  <div className="grid grid-cols-1 gap-2">
                     {msg.sources.map((s, i) => s.web && (
-                      <a key={i} href={s.web.uri} target="_blank" rel="noreferrer" className="flex items-center justify-between p-2 bg-slate-50 rounded-xl border border-slate-100 hover:border-blue-300 hover:bg-white transition-all">
-                        <span className="text-[10px] font-black text-slate-600 truncate mr-4">{s.web.title}</span>
-                        <span className="text-[10px] text-blue-600 shrink-0">↗</span>
+                      <a key={i} href={s.web.uri} target="_blank" rel="noreferrer" className="flex items-center justify-between p-3 bg-slate-50 rounded-xl border border-slate-200 hover:border-blue-400 hover:bg-white transition-all group">
+                        <span className="text-[11px] font-black text-slate-600 truncate">{s.web.title}</span>
+                        <span className="text-blue-600 group-hover:translate-x-1 transition-transform">↗</span>
                       </a>
                     ))}
                   </div>
@@ -245,60 +112,40 @@ const SmartChatbot: React.FC<SmartChatbotProps> = ({ analysis, onSetReminders, a
           </div>
         ))}
         {isTyping && (
-          <div className="flex items-center gap-1.5 px-4 animate-pulse">
-            <div className="w-2 h-2 bg-blue-600 rounded-full"></div>
-            <div className="w-2 h-2 bg-blue-400 rounded-full"></div>
-            <div className="w-2 h-2 bg-blue-200 rounded-full"></div>
-            <span className="text-[10px] font-black text-slate-400 uppercase tracking-widest ml-2">{t('AI is thinking...', 'AI सोच रहा है...', 'AI ఆలోచిస్తోంది...')}</span>
+          <div className="flex items-center gap-2 px-4 animate-pulse">
+            <div className="flex gap-1">
+              <div className="w-2 h-2 bg-blue-600 rounded-full animate-bounce" style={{animationDelay: '0s'}}></div>
+              <div className="w-2 h-2 bg-blue-600 rounded-full animate-bounce" style={{animationDelay: '0.2s'}}></div>
+              <div className="w-2 h-2 bg-blue-600 rounded-full animate-bounce" style={{animationDelay: '0.4s'}}></div>
+            </div>
+            <span className="text-[10px] font-black text-slate-400 uppercase tracking-widest">{t('Consulting Database...', 'डेटाबेस परामर्श...', 'డేటాబేస్ సంప్రదిస్తోంది...')}</span>
           </div>
         )}
       </div>
 
-      {/* Quick Action Chips */}
-      <div className="px-6 py-3 bg-white border-t border-slate-100">
-         <div className="flex gap-2 overflow-x-auto pb-1 no-scrollbar">
-            {QUICK_CHIPS.map((chip, idx) => (
-              <button 
-                key={idx}
-                onClick={(e) => { e.stopPropagation(); handleSendMessage(chip.query); }}
-                disabled={isTyping}
-                className="whitespace-nowrap px-4 py-2 bg-blue-50 text-blue-600 rounded-full text-[10px] font-black uppercase tracking-wider border border-blue-100 hover:bg-blue-600 hover:text-white transition-all active:scale-90 shrink-0"
-              >
-                ✨ {chip.label}
-              </button>
-            ))}
-         </div>
-      </div>
-
-      {/* Input Area */}
       <div className="p-6 bg-white border-t border-slate-100">
-        <form 
-          onSubmit={(e) => { e.preventDefault(); e.stopPropagation(); handleSendMessage(userInput); }} 
-          className="relative flex items-center"
-        >
+        <div className="flex gap-2 overflow-x-auto pb-4 no-scrollbar">
+          {[
+            { l: t('Side Effects', 'दुष्प्रभाव', 'దుష్ప్రభావాలు'), q: 'What are common side effects?' },
+            { l: t('Interactions', 'पारस्परिक क्रिया', 'పరస్పర చర్యలు'), q: 'Do these medicines interact?' },
+            { l: t('Diet', 'आहार', 'ఆహారం'), q: 'Any food restrictions?' }
+          ].map((chip, i) => (
+            <button key={i} onClick={() => handleSendMessage(chip.q)} className="whitespace-nowrap px-5 py-2.5 bg-blue-50 text-blue-600 rounded-full text-[11px] font-black uppercase tracking-wider border border-blue-100 hover:bg-blue-600 hover:text-white transition-all">✨ {chip.l}</button>
+          ))}
+        </div>
+        <form onSubmit={(e) => { e.preventDefault(); handleSendMessage(userInput); }} className="relative">
           <input 
             type="text" 
             value={userInput} 
             onChange={(e) => setUserInput(e.target.value)} 
-            placeholder={t('Ask me something...', 'मुझसे कुछ पूछें...', 'నన్ను ఏదైనా అడగండి...')} 
-            className="w-full pl-6 pr-16 py-4 rounded-2xl bg-slate-50 border-2 border-slate-100 outline-none text-sm font-bold focus:border-blue-600 transition-all placeholder:text-slate-300" 
-            disabled={isTyping}
+            placeholder={t('Ask about your meds...', 'अपनी दवाओं के बारे में पूछें...', 'మీ మందుల గురించి అడగండి...')} 
+            className="w-full pl-6 pr-16 py-5 rounded-[1.8rem] bg-slate-50 border-2 border-slate-200 outline-none font-bold text-sm focus:border-blue-600 transition-all" 
           />
-          <button 
-            type="submit"
-            disabled={!userInput.trim() || isTyping}
-            className={`absolute right-2 p-3 rounded-xl transition-all ${
-              !userInput.trim() || isTyping 
-                ? 'bg-slate-100 text-slate-300' 
-                : 'bg-slate-900 text-white hover:bg-blue-600 shadow-lg active:scale-90'
-            }`}
-          >
-            <svg xmlns="http://www.w3.org/2000/svg" className="h-5 w-5" viewBox="0 0 20 20" fill="currentColor">
-              <path d="M10.894 2.553a1 1 0 00-1.788 0l-7 14a1 1 0 001.169 1.409l5-1.429A1 1 0 009 15.571V11a1 1 0 112 0v4.571a1 1 0 00.725.962l5 1.428a1 1 0 001.17-1.408l-7-14z" />
-            </svg>
+          <button type="submit" className="absolute right-3 top-1/2 -translate-y-1/2 p-3 bg-slate-900 text-white rounded-2xl hover:bg-blue-600 transition-all">
+             <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="3" d="M5 10l7-7m0 0l7 7m-7-7v18" /></svg>
           </button>
         </form>
-        <p className="text-[8px] font-bold text-slate-300 mt-4 text-center uppercase tracking-widest">{t('AI may provide incorrect medical advice. Consult your doctor.', 'एआई गलत सलाह दे सकता है। डॉक्टर से सलाह लें।', 'AI తప్పుడు సలహా ఇవ్వవచ్చు. వైద్యుడిని సంప్రదించండి.')}</p>
+        <p className="text-[9px] font-bold text-slate-300 mt-4 text-center tracking-widest uppercase">{t('Always verify AI medical advice with your provider', 'हमेशा अपने डॉक्टर से एआई सलाह सत्यापित करें', 'AI సలహాను ఎల్లప్పుడూ వైద్యుడితో ధృవీకరించుకోండి')}</p>
       </div>
     </div>
   );

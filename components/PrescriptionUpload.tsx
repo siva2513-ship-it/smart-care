@@ -15,12 +15,12 @@ const PrescriptionUpload: React.FC<PrescriptionUploadProps> = ({ onUpload, isPro
   const canvasRef = useRef<HTMLCanvasElement>(null);
 
   const stages = [
-    "Capturing high-definition frames...",
-    "Scanning handwriting patterns...",
-    "Decoding doctor's medical script...",
-    "Cross-referencing drug databases...",
-    "Validating clinical dosages...",
-    "Translating instructions..."
+    "Capturing HD Medical Frames...",
+    "Isolating Handwritten Regions...",
+    "Applying Neural Denoising...",
+    "Decoding Clinical Sig Codes...",
+    "Verifying Drug Safety Profiles...",
+    "Finalizing Health Directive..."
   ];
 
   useEffect(() => {
@@ -29,7 +29,7 @@ const PrescriptionUpload: React.FC<PrescriptionUploadProps> = ({ onUpload, isPro
       setLoadingStage(0);
       interval = setInterval(() => {
         setLoadingStage(prev => (prev + 1) % stages.length);
-      }, 1500);
+      }, 1400);
     }
     return () => clearInterval(interval);
   }, [isProcessing]);
@@ -38,18 +38,11 @@ const PrescriptionUpload: React.FC<PrescriptionUploadProps> = ({ onUpload, isPro
     try {
       setMode('camera');
       const stream = await navigator.mediaDevices.getUserMedia({ 
-        video: { 
-          facingMode: 'environment',
-          width: { ideal: 4096 }, 
-          height: { ideal: 2160 }
-        } 
+        video: { facingMode: 'environment', width: { ideal: 4096 }, height: { ideal: 2160 } } 
       });
-      if (videoRef.current) {
-        videoRef.current.srcObject = stream;
-      }
+      if (videoRef.current) videoRef.current.srcObject = stream;
     } catch (err) {
-      console.error("Camera error:", err);
-      alert("Please allow camera access for high-accuracy medical scanning.");
+      alert("Camera access required for clinical scanning.");
       setMode('idle');
     }
   };
@@ -61,14 +54,11 @@ const PrescriptionUpload: React.FC<PrescriptionUploadProps> = ({ onUpload, isPro
 
   const capturePhoto = () => {
     if (videoRef.current && canvasRef.current) {
-      const context = canvasRef.current.getContext('2d');
       const video = videoRef.current;
       canvasRef.current.width = video.videoWidth;
       canvasRef.current.height = video.videoHeight;
-      context?.drawImage(video, 0, 0);
-      
-      const dataUrl = canvasRef.current.toDataURL('image/jpeg', 0.95); 
-      setPreviewUrl(dataUrl);
+      canvasRef.current.getContext('2d')?.drawImage(video, 0, 0);
+      setPreviewUrl(canvasRef.current.toDataURL('image/jpeg', 0.95));
       setMode('preview');
       stopCamera();
     }
@@ -78,37 +68,33 @@ const PrescriptionUpload: React.FC<PrescriptionUploadProps> = ({ onUpload, isPro
     const file = e.target.files?.[0];
     if (file) {
       const reader = new FileReader();
-      reader.onload = (event) => {
-        setPreviewUrl(event.target?.result as string);
-        setMode('preview');
-      };
+      reader.onload = (ev) => { setPreviewUrl(ev.target?.result as string); setMode('preview'); };
       reader.readAsDataURL(file);
-    }
-  };
-
-  const handleFinalSubmit = () => {
-    if (previewUrl) {
-      onUpload(previewUrl);
     }
   };
 
   return (
     <div className="w-full max-w-2xl mx-auto animate-in fade-in slide-in-from-bottom-8 duration-700">
-      <div className="bg-white rounded-[4rem] border-8 border-slate-100 shadow-2xl overflow-hidden min-h-[550px] flex flex-col relative">
+      <div className="bg-white rounded-[3.5rem] border-8 border-slate-100 shadow-2xl overflow-hidden min-h-[580px] flex flex-col relative group">
         
         {isProcessing && (
-          <div className="absolute inset-0 z-50 bg-white/95 backdrop-blur-md flex flex-col items-center justify-center p-12 text-center">
-             <div className="relative mb-12">
-                <div className="w-36 h-36 border-[12px] border-blue-600 border-t-transparent rounded-full animate-spin"></div>
-                <div className="absolute inset-0 flex items-center justify-center text-5xl">🔬</div>
+          <div className="absolute inset-0 z-50 bg-white/95 backdrop-blur-xl flex flex-col items-center justify-center p-12 text-center animate-in fade-in">
+             {/* Scanning Laser Line Effect */}
+             <div className="absolute inset-0 pointer-events-none overflow-hidden opacity-20">
+                <div className="w-full h-[2px] bg-blue-500 shadow-[0_0_15px_blue] absolute top-0 animate-scan-line"></div>
              </div>
-             <h3 className="text-4xl font-black text-slate-900 tracking-tight mb-2">Analyzing Script</h3>
-             <p className="text-slate-400 font-bold mb-8">AI is correcting handwriting ambiguities...</p>
-             <div className="mt-4 space-y-4 w-full max-w-sm">
-                <div className="h-3 bg-slate-100 rounded-full overflow-hidden">
+
+             <div className="relative mb-12">
+                <div className="w-40 h-40 border-[16px] border-blue-600 border-t-transparent rounded-full animate-spin"></div>
+                <div className="absolute inset-0 flex items-center justify-center text-6xl">🔬</div>
+             </div>
+             
+             <h3 className="text-4xl font-black text-slate-900 tracking-tighter mb-4">Reading Notes...</h3>
+             <div className="w-full max-w-sm space-y-4">
+                <div className="h-4 bg-slate-100 rounded-full overflow-hidden border border-slate-200 shadow-inner">
                    <div className="h-full bg-blue-600 transition-all duration-700" style={{ width: `${((loadingStage + 1) / stages.length) * 100}%` }}></div>
                 </div>
-                <p className="text-blue-600 text-xl font-black italic animate-pulse h-8">
+                <p className="text-blue-600 text-lg font-black italic animate-pulse tracking-tight h-8">
                    {stages[loadingStage]}
                 </p>
              </div>
@@ -118,27 +104,27 @@ const PrescriptionUpload: React.FC<PrescriptionUploadProps> = ({ onUpload, isPro
         {mode === 'idle' && (
           <div className="flex-1 flex flex-col p-12 space-y-8">
             <div className="text-center mb-4">
-               <h3 className="text-4xl font-black text-slate-900 tracking-tight">Clinical Scan</h3>
-               <p className="text-slate-500 font-bold text-lg mt-2 italic">Place prescription on a flat, well-lit surface</p>
+               <h3 className="text-4xl font-black text-slate-900 tracking-tighter">Clinical Prescription Scan</h3>
+               <p className="text-slate-500 font-bold text-lg mt-2 italic">Ensure good lighting for handwriting detection</p>
             </div>
 
             <button 
               onClick={startCamera}
-              className="flex-1 bg-blue-600 text-white rounded-[3.5rem] flex flex-col items-center justify-center space-y-6 hover:bg-blue-700 transition-all shadow-xl active:scale-95 group relative overflow-hidden"
+              className="flex-1 bg-blue-600 text-white rounded-[3rem] flex flex-col items-center justify-center space-y-6 hover:bg-blue-700 transition-all shadow-xl active:scale-95 group relative overflow-hidden"
             >
-              <div className="absolute inset-0 bg-gradient-to-br from-white/10 to-transparent"></div>
-              <div className="text-8xl group-hover:scale-110 transition-transform relative z-10">📸</div>
+              <div className="absolute inset-0 bg-gradient-to-br from-white/20 to-transparent"></div>
+              <div className="text-9xl group-hover:scale-110 transition-transform relative z-10 drop-shadow-2xl">📸</div>
               <div className="text-center relative z-10">
-                <span className="block text-4xl font-black tracking-tight">Start Scan</span>
-                <span className="text-lg opacity-80 font-black uppercase tracking-widest mt-1">HD Focus Enabled</span>
+                <span className="block text-4xl font-black tracking-tighter">Capture Photo</span>
+                <span className="text-sm opacity-80 font-black uppercase tracking-[0.3em] mt-2 block">AI Handwriting Optimized</span>
               </div>
             </button>
             
             <button 
               onClick={() => fileInputRef.current?.click()}
-              className="py-8 bg-slate-50 text-slate-700 rounded-[2.5rem] font-black text-xl border-2 border-slate-200 hover:border-blue-400 hover:bg-white transition-all active:scale-95 flex items-center justify-center gap-4"
+              className="py-8 bg-slate-50 text-slate-700 rounded-[2rem] font-black text-xl border-2 border-slate-200 hover:border-blue-400 hover:bg-white transition-all flex items-center justify-center gap-4"
             >
-              <span>🖼️</span> Import from Photos
+              <span className="text-2xl">🖼️</span> Upload from Gallery
             </button>
             <input ref={fileInputRef} type="file" accept="image/*" className="hidden" onChange={handleFileChange} />
           </div>
@@ -147,37 +133,23 @@ const PrescriptionUpload: React.FC<PrescriptionUploadProps> = ({ onUpload, isPro
         {mode === 'camera' && (
           <div className="relative flex-1 bg-black overflow-hidden flex flex-col">
             <video ref={videoRef} autoPlay playsInline className="w-full h-full object-cover" />
-            
-            {/* Focus Guard Visual Overlay */}
-            <div className="absolute inset-0 flex flex-col items-center justify-center pointer-events-none p-10">
-               <div className="w-full h-full border-4 border-white/40 border-dashed rounded-[3rem] relative">
-                  <div className="absolute top-0 left-0 w-16 h-16 border-t-8 border-l-8 border-blue-500 rounded-tl-3xl"></div>
-                  <div className="absolute top-0 right-0 w-16 h-16 border-t-8 border-r-8 border-blue-500 rounded-tr-3xl"></div>
-                  <div className="absolute bottom-0 left-0 w-16 h-16 border-b-8 border-l-8 border-blue-500 rounded-bl-3xl"></div>
-                  <div className="absolute bottom-0 right-0 w-16 h-16 border-b-8 border-r-8 border-blue-500 rounded-br-3xl"></div>
-                  
+            <div className="absolute inset-0 flex flex-col items-center justify-center pointer-events-none p-12">
+               <div className="w-full h-full border-4 border-white/40 border-dashed rounded-[3rem] relative shadow-[0_0_150px_rgba(0,0,0,0.6)_inset]">
+                  <div className="absolute top-0 left-0 w-24 h-24 border-t-8 border-l-8 border-blue-500 rounded-tl-3xl"></div>
+                  <div className="absolute top-0 right-0 w-24 h-24 border-t-8 border-r-8 border-blue-500 rounded-tr-3xl"></div>
+                  <div className="absolute bottom-0 left-0 w-24 h-24 border-b-8 border-l-8 border-blue-500 rounded-bl-3xl"></div>
+                  <div className="absolute bottom-0 right-0 w-24 h-24 border-b-8 border-r-8 border-blue-500 rounded-br-3xl"></div>
                   <div className="absolute inset-0 flex items-center justify-center">
-                    <div className="bg-black/40 backdrop-blur-md px-6 py-3 rounded-2xl border border-white/20">
-                       <p className="text-white font-black text-xs uppercase tracking-[0.2em] text-center">
-                         Keep Text within Frame
-                       </p>
+                    <div className="bg-black/60 backdrop-blur-md px-8 py-3 rounded-2xl border border-white/10">
+                       <p className="text-white font-black text-xs uppercase tracking-widest text-center">Place Prescription within Frame</p>
                     </div>
                   </div>
                </div>
             </div>
-
-            <div className="absolute bottom-10 left-0 right-0 flex justify-center items-center gap-10 px-10">
-              <button 
-                onClick={() => { stopCamera(); setMode('idle'); }} 
-                className="w-16 h-16 bg-white/20 backdrop-blur-md text-white rounded-full flex items-center justify-center text-2xl shadow-lg"
-              >
-                ✕
-              </button>
-              <button 
-                onClick={capturePhoto} 
-                className="w-24 h-24 bg-white rounded-full border-8 border-blue-600 shadow-2xl active:scale-90 transition-all flex items-center justify-center"
-              >
-                <div className="w-14 h-14 bg-blue-600 rounded-full animate-pulse"></div>
+            <div className="absolute bottom-12 left-0 right-0 flex justify-center items-center gap-12">
+              <button onClick={() => { stopCamera(); setMode('idle'); }} className="w-16 h-16 bg-white/10 backdrop-blur-xl text-white rounded-full text-2xl border border-white/20 shadow-lg">✕</button>
+              <button onClick={capturePhoto} className="w-24 h-24 bg-white rounded-full border-8 border-blue-600 shadow-2xl active:scale-90 transition-all flex items-center justify-center">
+                <div className="w-16 h-16 bg-blue-600 rounded-full"></div>
               </button>
               <div className="w-16 h-16"></div>
             </div>
@@ -187,41 +159,30 @@ const PrescriptionUpload: React.FC<PrescriptionUploadProps> = ({ onUpload, isPro
         {mode === 'preview' && previewUrl && (
           <div className="flex-1 flex flex-col p-8 bg-white">
             <div className="text-center mb-6">
-               <h4 className="text-3xl font-black text-slate-800 tracking-tight">Confirm Details</h4>
-               <p className="text-slate-400 font-bold">Ensure medicine names are clearly visible</p>
+               <h4 className="text-3xl font-black text-slate-800 tracking-tighter">Handwriting Review</h4>
+               <p className="text-slate-400 font-bold">Ensure clinical notes are readable</p>
             </div>
-            
-            <div className="flex-1 relative rounded-[2.5rem] overflow-hidden border-4 border-slate-100 shadow-inner">
-              <img src={previewUrl} className="w-full h-full object-contain bg-slate-50" />
+            <div className="flex-1 relative rounded-[2.5rem] overflow-hidden border-4 border-slate-100 shadow-inner bg-slate-50">
+              <img src={previewUrl} className="w-full h-full object-contain" />
+              <div className="absolute top-4 right-4 bg-emerald-500 text-white px-5 py-2 rounded-full text-[10px] font-black uppercase tracking-widest shadow-xl">Sharp Input</div>
             </div>
-
             <div className="mt-8 flex gap-4">
-               <button 
-                 onClick={() => setMode('idle')} 
-                 className="flex-1 py-6 bg-slate-100 text-slate-600 rounded-[2rem] font-black text-xl hover:bg-slate-200 transition-all"
-               >
-                 Retake
-               </button>
-               <button 
-                 onClick={handleFinalSubmit}
-                 className="flex-[2] py-6 bg-blue-600 text-white rounded-[2rem] font-black text-2xl shadow-xl hover:bg-blue-700 transition-all"
-               >
-                 Confirm Scan
-               </button>
+               <button onClick={() => setMode('idle')} className="flex-1 py-6 bg-slate-100 text-slate-600 rounded-[1.8rem] font-black text-xl">Retake</button>
+               <button onClick={() => onUpload(previewUrl)} className="flex-[2] py-6 bg-blue-600 text-white rounded-[1.8rem] font-black text-2xl shadow-xl hover:bg-blue-700 transition-all">Analyze Prescription</button>
             </div>
           </div>
         )}
       </div>
 
-      <div className="mt-8 p-6 bg-slate-900 rounded-[2.5rem] text-white shadow-xl flex items-center gap-6 border-4 border-slate-800">
-         <div className="text-4xl">🎓</div>
-         <div>
-            <h4 className="text-lg font-black mb-0.5">Clinical Recognition</h4>
-            <p className="text-slate-400 font-bold text-sm leading-snug">
-               Our AI uses a medical database to cross-reference common doctor's handwriting patterns.
-            </p>
-         </div>
-      </div>
+      <style dangerouslySetInnerHTML={{ __html: `
+        @keyframes scan-line {
+          0% { top: 0%; }
+          100% { top: 100%; }
+        }
+        .animate-scan-line {
+          animation: scan-line 2.5s infinite linear;
+        }
+      `}} />
     </div>
   );
 };
