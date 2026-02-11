@@ -3,12 +3,14 @@ import React, { useState, useEffect, useCallback, useMemo } from 'react';
 import { HashRouter as Router, Routes, Route, Link, useNavigate, Navigate, useLocation } from 'react-router-dom';
 import { PrescriptionAnalysis, TimeOfDay, ReminderPreference, PatientInfo, User, Medicine, Language, UserRole } from './types.ts';
 import { geminiService } from './services/geminiService.ts';
-import { MOCK_PRESCRIPTION_DATA } from './constants.tsx';
+import { MOCK_PRESCRIPTION_DATA, TIME_ICONS } from './constants.tsx';
 import PrescriptionUpload from './components/PrescriptionUpload.tsx';
 import ScheduleCard from './components/ScheduleCard.tsx';
 import VoiceAssistant from './components/VoiceAssistant.tsx';
 import SmartChatbot from './components/SmartChatbot.tsx';
 import IncomingCallUI from './components/IncomingCallUI.tsx';
+
+// --- TRANSLATIONS ---
 
 const UI_STRINGS = {
   en: {
@@ -23,9 +25,14 @@ const UI_STRINGS = {
     nextDose: "Up Next",
     takeNow: "Due Now",
     allDone: "All medications taken for this slot!",
+    dailyPulse: "Daily Adherence Pulse",
+    testCallBtn: "Test Voice System",
+    safetyCheck: "Safety Check",
     loginTitle: "Enter Care Room",
     loginAction: "Enter Session",
-    namePlaceholder: "Your Name"
+    namePlaceholder: "Your Name",
+    testMedName: "Test Vitamin",
+    testMedInst: "Take with a glass of water to ensure the system works correctly."
   },
   hi: {
     home: "मुख्य पृष्ठ",
@@ -39,9 +46,14 @@ const UI_STRINGS = {
     nextDose: "अगली खुराक",
     takeNow: "अभी लेनी है",
     allDone: "इस समय की सभी दवाएं ले ली गई हैं!",
+    dailyPulse: "दैनिक दवा की स्थिति",
+    testCallBtn: "वॉइस सिस्टम का परीक्षण करें",
+    safetyCheck: "सुरक्षा जांच",
     loginTitle: "देखभाल कक्ष में प्रवेश करें",
     loginAction: "सत्र शुरू करें",
-    namePlaceholder: "आपका नाम"
+    namePlaceholder: "आपका नाम",
+    testMedName: "परीक्षण विटामिन",
+    testMedInst: "यह सुनिश्चित करने के लिए कि सिस्टम ठीक से काम कर रहा है, एक गिलास पानी के साथ लें।"
   },
   te: {
     home: "హోమ్",
@@ -55,16 +67,21 @@ const UI_STRINGS = {
     nextDose: "తదుపరి మోతాదు",
     takeNow: "ఇప్పుడే తీసుకోవాలి",
     allDone: "ఈ సమయానికి సంబంధించిన అన్ని మందులు తీసుకున్నారు!",
+    dailyPulse: "రోజువారీ మందుల స్థితి",
+    testCallBtn: "వాయిస్ సిస్టమ్‌ను పరీక్షించండి",
+    safetyCheck: "భద్రతా తనిఖీ",
     loginTitle: "కేర్ రూమ్‌లోకి ప్రవేశించండి",
     loginAction: "సెషన్‌ను ప్రారంభించండి",
-    namePlaceholder: "మీ పేరు"
+    namePlaceholder: "మీ పేరు",
+    testMedName: "టెస్ట్ విటమిన్",
+    testMedInst: "సిస్టమ్ సరిగ్గా పనిచేస్తోందని నిర్ధారించుకోవడానికి ఒక గ్లాసు నీటితో తీసుకోండి."
   }
 };
 
 const ROLES_LABELS = {
   en: { PATIENT: 'Patient', NURSE: 'Nurse', CHILD: 'Child', GUARDIAN: 'Guardian', SPOUSE: 'Spouse' },
   hi: { PATIENT: 'रोगी', NURSE: 'नर्स', CHILD: 'बच्चा', GUARDIAN: 'अभिभावक', SPOUSE: 'जीवनसाथी' },
-  te: { PATIENT: 'రోగి', NURSE: 'नర్స్', CHILD: 'పిల్లలు', GUARDIAN: 'సంరక్షకుడు', SPOUSE: 'భార్య/భర్త' }
+  te: { PATIENT: 'రోగి', NURSE: 'నర్స్', CHILD: 'పిల్లలు', GUARDIAN: 'సంరక్షకుడు', SPOUSE: 'భార్య/భర్త' }
 };
 
 const getCurrentTimeOfDay = (): TimeOfDay => {
@@ -168,6 +185,7 @@ const MainDashboard: React.FC<{ user: User; patientInfo: PatientInfo; setPatient
     return saved ? new Set(JSON.parse(saved)) : new Set();
   });
   const [simulatedTime, setSimulatedTime] = useState<TimeOfDay>(getCurrentTimeOfDay());
+  const [testCallActive, setTestCallActive] = useState(false);
 
   const effectiveAnalysis = analysis || MOCK_PRESCRIPTION_DATA;
   const labels = UI_STRINGS[patientInfo.language] || UI_STRINGS.en;
@@ -196,6 +214,15 @@ const MainDashboard: React.FC<{ user: User; patientInfo: PatientInfo; setPatient
     localStorage.setItem('scr_taken_keys', JSON.stringify(Array.from(next)));
   };
 
+  const getSlotProgress = (time: TimeOfDay) => {
+    const medsInSlot = effectiveAnalysis.medicines.filter(m => m.timing.includes(time));
+    if (medsInSlot.length === 0) return 'empty';
+    const takenInSlot = medsInSlot.filter(m => takenKeys.has(`${m.id}-${time}`));
+    if (takenInSlot.length === medsInSlot.length) return 'complete';
+    if (takenInSlot.length > 0) return 'partial';
+    return 'pending';
+  };
+
   const timeLabel = (t: TimeOfDay) => {
     if (patientInfo.language === 'hi') {
       switch(t) {
@@ -218,6 +245,19 @@ const MainDashboard: React.FC<{ user: User; patientInfo: PatientInfo; setPatient
 
   return (
     <div className="min-h-screen pb-24 bg-[#F8FAFC]">
+      {testCallActive && (
+        <IncomingCallUI 
+          onAccept={() => {}}
+          onDecline={() => setTestCallActive(false)}
+          callerName="SmartCare Test AI"
+          medicineName={labels.testMedName}
+          dosage="1 Unit"
+          instructions={labels.testMedInst}
+          timeOfDay={simulatedTime}
+          lang={patientInfo.language}
+        />
+      )}
+
       <div className="container mx-auto px-6 pt-8">
         {step === 'onboarding' && (
           <div className="max-w-md mx-auto bg-white p-12 rounded-[4rem] shadow-2xl border border-slate-100">
@@ -250,6 +290,34 @@ const MainDashboard: React.FC<{ user: User; patientInfo: PatientInfo; setPatient
 
         {step === 'dashboard' && (
           <div className="space-y-8 animate-in fade-in slide-in-from-bottom-4 duration-700">
+            {/* DAILY PULSE SUMMARY */}
+            <div className="bg-slate-900 rounded-[3.5rem] p-8 md:p-12 shadow-3xl text-white">
+              <div className="flex flex-col md:flex-row items-center justify-between gap-8">
+                <div>
+                   <h2 className="text-3xl font-black tracking-tighter mb-2">{labels.dailyPulse}</h2>
+                   <p className="text-blue-400 font-bold text-sm uppercase tracking-widest opacity-80">Track your progress across the day</p>
+                </div>
+                <div className="flex gap-4 md:gap-8 overflow-x-auto pb-2 w-full md:w-auto">
+                   {Object.values(TimeOfDay).map(t => {
+                      const status = getSlotProgress(t);
+                      return (
+                        <div key={t} className="flex flex-col items-center gap-3 shrink-0">
+                           <div className={`w-14 h-14 rounded-2xl flex items-center justify-center text-2xl border-2 transition-all ${
+                              status === 'complete' ? 'bg-emerald-500 border-emerald-400 shadow-[0_0_20px_rgba(16,185,129,0.4)]' :
+                              status === 'partial' ? 'bg-amber-500 border-amber-400 shadow-[0_0_20px_rgba(245,158,11,0.4)]' :
+                              status === 'empty' ? 'bg-slate-800 border-slate-700 opacity-40' :
+                              'bg-slate-800 border-slate-700'
+                           }`}>
+                              {t === TimeOfDay.MORNING ? '🌅' : t === TimeOfDay.AFTERNOON ? '☀️' : t === TimeOfDay.EVENING ? '🌇' : '🌙'}
+                           </div>
+                           <span className={`text-[10px] font-black uppercase tracking-widest ${status === 'complete' ? 'text-emerald-400' : 'text-slate-500'}`}>{timeLabel(t)}</span>
+                        </div>
+                      );
+                   })}
+                </div>
+              </div>
+            </div>
+
             {/* PULSE BANNER */}
             <div className={`p-8 rounded-[3.5rem] border-4 transition-all ${nextMedication ? 'bg-blue-600 border-blue-500 text-white shadow-[0_20px_60px_rgba(37,99,235,0.4)]' : 'bg-emerald-50 border-emerald-100 text-emerald-900'}`}>
                <div className="flex flex-col md:flex-row items-center justify-between gap-6">
@@ -305,6 +373,18 @@ const MainDashboard: React.FC<{ user: User; patientInfo: PatientInfo; setPatient
               </div>
 
               <div className="lg:col-span-4 space-y-8">
+                {/* SYSTEM TEST SECTION */}
+                <div className="p-8 bg-blue-50 rounded-[3.5rem] border border-blue-100 shadow-sm">
+                   <h4 className="text-[10px] font-black text-blue-500 uppercase tracking-widest mb-4">{labels.safetyCheck}</h4>
+                   <p className="text-blue-900/60 text-sm font-bold leading-relaxed mb-6">Verify your phone's speaker and AI voice settings by initiating a test reminder.</p>
+                   <button 
+                    onClick={() => setTestCallActive(true)}
+                    className="w-full py-4 bg-white text-blue-600 font-black rounded-2xl shadow-md border border-blue-200 hover:bg-blue-600 hover:text-white transition-all flex items-center justify-center gap-3"
+                   >
+                     <span>📞</span> {labels.testCallBtn}
+                   </button>
+                </div>
+
                 <div className="p-8 bg-white rounded-[3.5rem] border border-slate-200 shadow-lg">
                    <h4 className="text-sm font-black text-slate-800 mb-4">{labels.summaryTitle}</h4>
                    <p className="text-slate-600 text-sm font-bold leading-relaxed mb-8 italic">{effectiveAnalysis.summary}</p>
