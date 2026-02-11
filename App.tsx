@@ -207,8 +207,8 @@ const MainDashboard: React.FC<{ user: User; patientInfo: PatientInfo; setPatient
   }, [analysis, labels]);
 
   const nextMedication = useMemo(() => {
-    const medsInSlot = effectiveAnalysis.medicines.filter(m => m.timing.includes(simulatedTime));
-    return medsInSlot.find(m => !takenKeys.has(`${m.id}-${simulatedTime}`));
+    const medsInSlot = effectiveAnalysis.medicines.filter((m: Medicine) => m.timing.includes(simulatedTime));
+    return medsInSlot.find((m: Medicine) => !takenKeys.has(`${m.id}-${simulatedTime}`));
   }, [effectiveAnalysis, simulatedTime, takenKeys]);
 
   const handleDataReady = async (source: string) => {
@@ -233,9 +233,9 @@ const MainDashboard: React.FC<{ user: User; patientInfo: PatientInfo; setPatient
   };
 
   const getSlotProgress = (time: TimeOfDay) => {
-    const medsInSlot = effectiveAnalysis.medicines.filter(m => m.timing.includes(time));
+    const medsInSlot = effectiveAnalysis.medicines.filter((m: Medicine) => m.timing.includes(time));
     if (medsInSlot.length === 0) return 'empty';
-    const takenInSlot = medsInSlot.filter(m => takenKeys.has(`${m.id}-${time}`));
+    const takenInSlot = medsInSlot.filter((m: Medicine) => takenKeys.has(`${m.id}-${time}`));
     if (takenInSlot.length === medsInSlot.length) return 'complete';
     if (takenInSlot.length > 0) return 'partial';
     return 'pending';
@@ -392,7 +392,7 @@ const MainDashboard: React.FC<{ user: User; patientInfo: PatientInfo; setPatient
                 <div className="grid grid-cols-1 sm:grid-cols-2 gap-6">
                     <ScheduleCard 
                       time={simulatedTime} 
-                      medicines={effectiveAnalysis.medicines.filter(m => m.timing.includes(simulatedTime))} 
+                      medicines={effectiveAnalysis.medicines.filter((m: Medicine) => m.timing.includes(simulatedTime))}
                       takenKeys={takenKeys} 
                       onMarkTaken={markAsTaken}
                       lang={patientInfo.language}
@@ -401,7 +401,7 @@ const MainDashboard: React.FC<{ user: User; patientInfo: PatientInfo; setPatient
                         <div className="p-8 bg-white border border-slate-200 rounded-[3rem] h-full flex flex-col">
                             <h4 className="text-[10px] font-black text-slate-400 uppercase tracking-widest mb-6 px-1">{labels.allMeds} ({effectiveAnalysis.medicines.length})</h4>
                             <div className="space-y-4 flex-1 overflow-y-auto max-h-[400px] custom-scrollbar pr-2">
-                                {effectiveAnalysis.medicines.map(m => (
+                                {effectiveAnalysis.medicines.map((m: Medicine) => (
                                     <div key={m.id} className="p-4 bg-slate-50 rounded-2xl border border-slate-100 flex items-center justify-between gap-3">
                                         <div className="truncate">
                                             <p className="text-sm font-black text-slate-900 truncate">{m.name}</p>
