@@ -1,6 +1,6 @@
 
 import React from 'react';
-import { Medicine, TimeOfDay } from '../types';
+import { Medicine, TimeOfDay, Language } from '../types';
 import { TIME_ICONS } from '../constants';
 
 interface ScheduleCardProps {
@@ -8,9 +8,10 @@ interface ScheduleCardProps {
   medicines: Medicine[];
   takenKeys: Set<string>;
   onMarkTaken: (medId: string, time: TimeOfDay) => void;
+  lang?: Language;
 }
 
-const ScheduleCard: React.FC<ScheduleCardProps> = ({ time, medicines, takenKeys, onMarkTaken }) => {
+const ScheduleCard: React.FC<ScheduleCardProps> = ({ time, medicines, takenKeys, onMarkTaken, lang = 'en' }) => {
   const getTheme = (time: TimeOfDay) => {
     switch (time) {
       case TimeOfDay.MORNING: return 'bg-amber-50 border-amber-200 text-amber-700';
@@ -27,8 +28,14 @@ const ScheduleCard: React.FC<ScheduleCardProps> = ({ time, medicines, takenKeys,
     if (lower.includes('liquid') || lower.includes('syrup')) return '🧪';
     if (lower.includes('inhaler') || lower.includes('spray')) return '🌬️';
     if (lower.includes('injection')) return '💉';
-    return '💊'; // Default
+    return '💊';
   };
+
+  const labels = {
+    en: { items: "Items Due", clear: "Clear", nothing: "Nothing scheduled for this time", verified: "Verified Taken" },
+    hi: { items: "दवाएं शेष", clear: "कोई दवा नहीं", nothing: "इस समय के लिए कुछ भी निर्धारित नहीं है", verified: "दवा ले ली गई है" },
+    te: { items: "మందులు ఉన్నాయి", clear: "ఖాళీ", nothing: "ఈ సమయానికి ఏమీ షెడ్యూల్ చేయబడలేదు", verified: "మందులు తీసుకున్నారు" }
+  }[lang] || { items: "Items Due", clear: "Clear", nothing: "Nothing scheduled", verified: "Taken" };
 
   const theme = getTheme(time);
 
@@ -43,7 +50,7 @@ const ScheduleCard: React.FC<ScheduleCardProps> = ({ time, medicines, takenKeys,
             {time}
           </h3>
           <p className="text-[10px] font-black text-slate-400 uppercase tracking-widest mt-0.5">
-            {medicines.length > 0 ? `${medicines.length} Items Due` : 'Clear'}
+            {medicines.length > 0 ? `${medicines.length} ${labels.items}` : labels.clear}
           </p>
         </div>
       </div>
@@ -80,7 +87,7 @@ const ScheduleCard: React.FC<ScheduleCardProps> = ({ time, medicines, takenKeys,
                 )}
                 {isTaken && (
                   <div className="flex items-center gap-1.5 px-2">
-                    <span className="text-[9px] font-black text-emerald-600 uppercase tracking-widest">Verified Taken</span>
+                    <span className="text-[9px] font-black text-emerald-600 uppercase tracking-widest">{labels.verified}</span>
                   </div>
                 )}
               </div>
@@ -89,7 +96,9 @@ const ScheduleCard: React.FC<ScheduleCardProps> = ({ time, medicines, takenKeys,
         ) : (
           <div className="flex-1 flex flex-col items-center justify-center py-10 border-2 border-dashed border-slate-200/50 rounded-[2rem]">
             <span className="text-2xl mb-2">✨</span>
-            <span className="text-[10px] font-black text-slate-300 uppercase tracking-widest italic text-center px-4">Nothing scheduled for this time</span>
+            <span className="text-[10px] font-black text-slate-300 uppercase tracking-widest italic text-center px-4">
+              {labels.nothing}
+            </span>
           </div>
         )}
       </div>

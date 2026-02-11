@@ -31,27 +31,27 @@ export class GeminiService {
   }
 
   async analyzePrescription(base64Image: string, patientInfo: PatientInfo): Promise<PrescriptionAnalysis> {
+    // USING FLASH FOR ULTRA-FAST OCR & EXTRACTION
     const ai = new GoogleGenAI({ apiKey: process.env.API_KEY });
     const langName = this.getLanguageName(patientInfo.language);
     
-    const systemInstruction = `YOU ARE AN ELITE CLINICAL PHARMACY OCR & DIAGNOSTIC SYSTEM.
+    const systemInstruction = `YOU ARE A HIGH-SPEED CLINICAL DATA EXTRACTOR. 
+    TARGET PATIENT: ${patientInfo.age}yo with ${patientInfo.condition}.
     
-    OBJECTIVE: Extract and translate handwritten clinical prescriptions for a ${patientInfo.age}yo patient.
-    
-    OCR PROTOCOL:
-    1. CLINICAL DISAMBIGUATION: Correct sloppy handwriting using pharmaceutical context (e.g., 'm' vs 'n' confusion). 
-    2. DRUG CLASS VERIFICATION: Identify the class (Antibiotic, NSAID, etc.) and cross-check common dosage levels for the patient's age.
-    3. ABBREVIATION EXPANSION: Convert Latin sigs (OD, BID, TID, TDS, AC, PC, QID) into plain ${langName} instructions.
-    4. SAFETY ALERT: If a dose seems life-threateningly high for a ${patientInfo.age}yo, flag it in the summary.
-    5. VISUAL FINDER: Describe the medicine color/shape based on the name (e.g., 'White round pill') to help the patient identify it.
+    CORE PROTOCOL (SPEED & ACCURACY):
+    1. EXTRACT: Directly pull all medicine names, dosages, and timings from the image.
+    2. RESOLVE: If handwriting is messy, use pharmaceutical context to correct it (e.g. "Parcetmol" -> "Paracetamol").
+    3. LOCALIZE: Translate ALL instructions and clinical summaries into ${langName} immediately.
+    4. SAFETY: If a dosage is visibly excessive for a ${patientInfo.age}yo, flag it in the summary.
+    5. IDENTIFY: Briefly describe medicine color/shape based on common forms of the drug.
 
-    OUTPUT SCHEMA:
-    - medicines: name, dosage, timing (subset of ["Morning", "Afternoon", "Evening", "Night"]), instructions (${langName}), color, drugClass.
-    - summary: A comforting, professional 2-3 sentence overview in ${langName}.`;
+    STRICT JSON OUTPUT IN ${langName}:
+    - medicines: [{name, dosage, timing[], instructions, color, drugClass}]
+    - summary: 2-3 sentence reassuring overview.`;
 
     try {
       const response = await ai.models.generateContent({
-        model: 'gemini-3-pro-preview',
+        model: 'gemini-3-flash-preview', // Flash is significantly faster for Vision-to-JSON
         contents: {
           parts: [
             {
@@ -60,12 +60,13 @@ export class GeminiService {
                 data: base64Image.split(',')[1] || base64Image
               }
             },
-            { text: `Analyze this prescription for a ${patientInfo.age}yo patient. Translate all patient-facing text to ${langName}.` }
+            { text: `Extract all prescription details. Language: ${langName}.` }
           ]
         },
         config: {
           systemInstruction,
-          thinkingConfig: { thinkingBudget: 15000 },
+          // Thinking budget set to 0 for maximum speed; Flash is naturally fast at OCR
+          thinkingConfig: { thinkingBudget: 0 },
           responseMimeType: "application/json",
           responseSchema: {
             type: Type.OBJECT,
@@ -91,7 +92,7 @@ export class GeminiService {
         }
       });
 
-      const text = response.text || '{"medicines": [], "summary": "Error: OCR engine failed."}';
+      const text = response.text || '{"medicines": [], "summary": "Scanning failed."}';
       const result = JSON.parse(text);
       
       return {
@@ -116,14 +117,14 @@ export class GeminiService {
         model: 'gemini-3-flash-preview',
         config: {
           tools: [{ googleSearch: {} }],
-          systemInstruction: `You are the SmartCare Medical Assistant. 
+          systemInstruction: `You are the SmartCare Senior Medical Assistant. 
           Context: Patient is ${patientInfo.age}yo, Condition: ${patientInfo.condition}.
-          Current Medications: ${medicines.map(m => m.name).join(', ')}.
+          Medications: ${medicines.map(m => m.name).join(', ')}.
           
           GUIDELINES:
-          1. Use Google Search for drug interactions/side effects.
+          1. Use Google Search for interactions.
           2. Respond strictly in ${langName}.
-          3. Emergency: Advise calling emergency services for critical symptoms.`
+          3. Emergency: Advise calling 911/emergency services if symptoms are severe.`
         }
       });
 

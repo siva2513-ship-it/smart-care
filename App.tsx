@@ -32,7 +32,10 @@ const UI_STRINGS = {
     off: "Standby",
     inspectedBy: "Primary Caregiver",
     careCircle: "Safety Shield Active",
-    statusBadge: "Protection Status"
+    statusBadge: "Protection Status",
+    loginTitle: "Enter Care Room",
+    loginAction: "Enter Session",
+    namePlaceholder: "Your Name"
   },
   hi: {
     home: "मुख्य पृष्ठ",
@@ -40,20 +43,23 @@ const UI_STRINGS = {
     ageLabel: "रोगी की आयु",
     conditionLabel: "बीमारी",
     langLabel: "भाषा",
-    caregiverLabel: "देखभाल कौन कर रहा है?",
-    scanBtn: "पर्चा विश्लेषण करें",
+    caregiverLabel: "निगरानी कौन कर रहा है?",
+    scanBtn: "पर्चा स्कैन करें",
     dashboard: "केयर डैशबोर्ड",
-    routine: "वर्तमान समय सारणी",
-    summaryTitle: "स्वास्थ्य बुद्धि",
+    routine: "दवा की समय सारणी",
+    summaryTitle: "स्वास्थ्य जानकारी",
     safetyMode: "वॉयस गार्ड",
     startGuard: "वॉयस गार्ड सक्रिय करें",
     stopGuard: "निगरानी बंद करें",
     testCall: "सुरक्षा परीक्षण",
     armed: "सक्रिय",
-    off: "स्टैंडबाय",
-    inspectedBy: "प्राथमिक देखभालकर्ता",
+    off: "बंद",
+    inspectedBy: "मुख्य देखभालकर्ता",
     careCircle: "सुरक्षा कवच सक्रिय",
-    statusBadge: "सुरक्षा स्थिति"
+    statusBadge: "सुरक्षा स्थिति",
+    loginTitle: "देखभाल कक्ष में प्रवेश करें",
+    loginAction: "सत्र शुरू करें",
+    namePlaceholder: "आपका नाम"
   },
   te: {
     home: "హోమ్",
@@ -62,7 +68,7 @@ const UI_STRINGS = {
     conditionLabel: "పరిస్థితి",
     langLabel: "భాష",
     caregiverLabel: "ఎవరు పర్యవేక్షిస్తున్నారు?",
-    scanBtn: "ప్రిస్క్రిప్షన్ విశ్లేషించండి",
+    scanBtn: "ప్రిస్క్రిప్షన్ స్కాన్ చేయండి",
     dashboard: "కేర్ డాష్‌బోర్డ్",
     routine: "ప్రస్తుత షెడ్యూల్",
     summaryTitle: "ఆరోగ్య మేధస్సు",
@@ -74,7 +80,10 @@ const UI_STRINGS = {
     off: "స్టాండ్‌బై",
     inspectedBy: "ప్రధాన సంరక్షకుడు",
     careCircle: "రక్షణ కవచం యాక్టివ్‌గా ఉంది",
-    statusBadge: "రక్షణ స్థితి"
+    statusBadge: "రక్షణ స్థితి",
+    loginTitle: "కేర్ రూమ్‌లోకి ప్రవేశించండి",
+    loginAction: "సెషన్‌ను ప్రారంభించండి",
+    namePlaceholder: "మీ పేరు"
   }
 };
 
@@ -82,6 +91,12 @@ const RELATIONSHIPS = {
   en: ["Child", "Spouse", "Nurse", "Guardian", "Self"],
   hi: ["बच्चा", "जीवनसाथी", "नर्स", "अभिभावक", "स्वयं"],
   te: ["పిల్లలు", "భార్య/భర్త", "నర్స్", "సంరక్షకుడు", "నేనే"]
+};
+
+const ROLES_LABELS = {
+  en: { PATIENT: 'Patient', NURSE: 'Nurse', CHILD: 'Child', GUARDIAN: 'Guardian', SPOUSE: 'Spouse' },
+  hi: { PATIENT: 'रोगी', NURSE: 'नर्स', CHILD: 'बच्चा', GUARDIAN: 'अभिभावक', SPOUSE: 'जीवनसाथी' },
+  te: { PATIENT: 'రోగి', NURSE: 'నర్స్', CHILD: 'పిల్లలు', GUARDIAN: 'సంరక్షకుడు', SPOUSE: 'భార్య/భర్త' }
 };
 
 // --- AUTH & STATE ---
@@ -111,6 +126,7 @@ const Nav: React.FC<{ user: User | null; onLogout: () => void; lang: Language }>
   const location = useLocation();
   const isHome = location.pathname === '/';
   const labels = UI_STRINGS[lang] || UI_STRINGS.en;
+  const roleLabels = ROLES_LABELS[lang] || ROLES_LABELS.en;
 
   return (
     <nav className="sticky top-0 z-50 bg-white/70 backdrop-blur-2xl border-b border-slate-200 shadow-sm">
@@ -129,7 +145,9 @@ const Nav: React.FC<{ user: User | null; onLogout: () => void; lang: Language }>
             <div className="flex items-center gap-4 pl-6 border-l border-slate-200">
               <div className="hidden sm:flex flex-col items-end">
                 <p className="text-[11px] font-black text-slate-900 leading-none">{user.name}</p>
-                <p className="text-[9px] font-bold text-blue-600 uppercase tracking-widest mt-1">{user.role}</p>
+                <p className="text-[9px] font-bold text-blue-600 uppercase tracking-widest mt-1">
+                  {roleLabels[user.role]}
+                </p>
               </div>
               <button onClick={onLogout} className="px-3 py-1.5 bg-slate-100 text-slate-600 font-black text-[10px] rounded-lg hover:bg-red-50 hover:text-red-600 transition-all border border-slate-200">Exit</button>
             </div>
@@ -184,9 +202,7 @@ const MainDashboard: React.FC<{ user: User; patientInfo: PatientInfo; setPatient
   const [showCallUI, setShowCallUI] = useState(false);
   const [lastCallEndedAt, setLastCallEndedAt] = useState<number | null>(null);
 
-  // Use a derived variable for analysis to avoid constant assignment errors in the JSX
   const effectiveAnalysis = analysis || MOCK_PRESCRIPTION_DATA;
-
   const labels = UI_STRINGS[patientInfo.language] || UI_STRINGS.en;
   
   const triggerCall = (med: Medicine) => {
@@ -197,12 +213,10 @@ const MainDashboard: React.FC<{ user: User; patientInfo: PatientInfo; setPatient
   const handleCallDecline = () => {
     setShowCallUI(false);
     setActiveCallMed(null);
-    // Signal call end to trigger chatbot "hang up" behavior
     setLastCallEndedAt(Date.now());
   };
 
   const handleDataReady = async (source: string) => {
-    // Only Nurse and Patient can scan/upload
     if (user.role !== 'PATIENT' && user.role !== 'NURSE') {
       alert("Only Patients and Nurses can modify clinical records.");
       return;
@@ -221,17 +235,34 @@ const MainDashboard: React.FC<{ user: User; patientInfo: PatientInfo; setPatient
   };
 
   const markAsTaken = (id: string, time: TimeOfDay) => {
-    // Roles allowed to confirm intake: Patient, Nurse, Spouse, Child (as monitor)
     const next = new Set(takenKeys);
     next.add(`${id}-${time}`);
     setTakenKeys(next);
     localStorage.setItem('scr_taken_keys', JSON.stringify(Array.from(next)));
   };
 
-  // RBAC Checks
-  const canSeePrescriptionDetails = user.role !== 'CHILD';
   const canModifyPrescription = user.role === 'PATIENT' || user.role === 'NURSE';
   const canSeeDiagnosis = user.role === 'PATIENT' || user.role === 'NURSE' || user.role === 'SPOUSE' || user.role === 'GUARDIAN';
+
+  const timeLabel = (t: TimeOfDay) => {
+    if (patientInfo.language === 'hi') {
+      switch(t) {
+        case TimeOfDay.MORNING: return 'सुबह';
+        case TimeOfDay.AFTERNOON: return 'दोपहर';
+        case TimeOfDay.EVENING: return 'शाम';
+        case TimeOfDay.NIGHT: return 'रात';
+      }
+    }
+    if (patientInfo.language === 'te') {
+      switch(t) {
+        case TimeOfDay.MORNING: return 'ఉదయం';
+        case TimeOfDay.AFTERNOON: return 'మధ్యాహ్నం';
+        case TimeOfDay.EVENING: return 'సాయంత్రం';
+        case TimeOfDay.NIGHT: return 'రాత్రి';
+      }
+    }
+    return t;
+  };
 
   return (
     <div className="min-h-screen pb-24 bg-[#F8FAFC]">
@@ -261,9 +292,28 @@ const MainDashboard: React.FC<{ user: User; patientInfo: PatientInfo; setPatient
               <div className="space-y-2">
                 <label className="text-[10px] font-black text-slate-400 uppercase tracking-[0.2em] px-1">{labels.langLabel}</label>
                 <div className="grid grid-cols-3 gap-3">
-                  {['en', 'hi', 'te'].map(lId => (
-                    <button key={lId} onClick={() => setPatientInfo({...patientInfo, language: lId as Language})} className={`py-4 rounded-2xl border-2 font-black text-sm transition-all ${patientInfo.language === lId ? 'bg-blue-600 text-white' : 'bg-slate-50'}`}>
-                      {lId.toUpperCase()}
+                  {[
+                    {id: 'en', label: 'English'},
+                    {id: 'hi', label: 'हिंदी'},
+                    {id: 'te', label: 'తెలుగు'}
+                  ].map(l => (
+                    <button key={l.id} onClick={() => setPatientInfo({...patientInfo, language: l.id as Language})} className={`py-4 rounded-2xl border-2 font-black text-sm transition-all ${patientInfo.language === l.id ? 'bg-blue-600 text-white border-blue-600 shadow-md' : 'bg-slate-50 border-slate-100 hover:border-blue-200'}`}>
+                      {l.label}
+                    </button>
+                  ))}
+                </div>
+              </div>
+
+              <div className="space-y-2">
+                <label className="text-[10px] font-black text-slate-400 uppercase tracking-[0.2em] px-1">{labels.caregiverLabel}</label>
+                <div className="grid grid-cols-2 gap-3">
+                  {(RELATIONSHIPS[patientInfo.language] || RELATIONSHIPS.en).map(rel => (
+                    <button 
+                      key={rel} 
+                      onClick={() => setPatientInfo({...patientInfo, caregiverRelationship: rel})}
+                      className={`py-3 rounded-xl border-2 font-black text-xs transition-all ${patientInfo.caregiverRelationship === rel ? 'bg-slate-900 text-white border-slate-900 shadow-md' : 'bg-slate-50 text-slate-500 border-slate-100'}`}
+                    >
+                      {rel}
                     </button>
                   ))}
                 </div>
@@ -271,7 +321,7 @@ const MainDashboard: React.FC<{ user: User; patientInfo: PatientInfo; setPatient
 
               <button 
                 onClick={() => setStep(canModifyPrescription ? 'upload' : 'dashboard')} 
-                disabled={!patientInfo.age} 
+                disabled={!patientInfo.age || !patientInfo.caregiverRelationship} 
                 className="w-full py-6 bg-blue-600 text-white text-xl font-black rounded-3xl shadow-xl disabled:opacity-20 hover:scale-105 transition-all"
               >
                 {canModifyPrescription ? labels.scanBtn : labels.dashboard}
@@ -282,17 +332,15 @@ const MainDashboard: React.FC<{ user: User; patientInfo: PatientInfo; setPatient
 
         {step === 'upload' && canModifyPrescription && <PrescriptionUpload onUpload={handleDataReady} isProcessing={isProcessing} />}
 
-        {/* Fix: use effectiveAnalysis derived variable and simplify the logic to avoid constant assignment error */}
         {(step === 'dashboard' || (!canModifyPrescription && step === 'upload')) && effectiveAnalysis && (
           <div className="grid grid-cols-1 lg:grid-cols-12 gap-8 animate-in fade-in duration-700">
             <div className="lg:col-span-8 space-y-8">
-              {/* Routine Schedule */}
-              <div className="bg-white p-6 rounded-[3rem] border border-slate-200 shadow-sm flex items-center justify-between">
+              <div className="bg-white p-6 rounded-[3rem] border border-slate-200 shadow-sm flex flex-col md:flex-row items-center justify-between gap-6">
                 <h3 className="font-black text-slate-900 text-2xl tracking-tight">{labels.routine}</h3>
-                <div className="flex bg-slate-100 p-1.5 rounded-2xl">
+                <div className="flex bg-slate-100 p-1.5 rounded-2xl border border-slate-200">
                   {Object.values(TimeOfDay).map(t => (
                     <button key={t} onClick={() => setSimulatedTime(t)} className={`px-5 py-2.5 rounded-xl font-black text-xs transition-all ${simulatedTime === t ? 'bg-white shadow-md text-blue-600' : 'text-slate-400'}`}>
-                      {t}
+                      {timeLabel(t)}
                     </button>
                   ))}
                 </div>
@@ -305,14 +353,14 @@ const MainDashboard: React.FC<{ user: User; patientInfo: PatientInfo; setPatient
                     time={time} 
                     medicines={effectiveAnalysis.medicines.filter(m => m.timing.includes(time))} 
                     takenKeys={takenKeys} 
-                    onMarkTaken={markAsTaken} 
+                    onMarkTaken={markAsTaken}
+                    lang={patientInfo.language}
                   />
                 ))}
               </div>
             </div>
 
             <div className="lg:col-span-4 space-y-8">
-              {/* Summary / Diagnosis (Restricted) */}
               {canSeeDiagnosis && (
                 <div className="p-8 bg-white rounded-[3.5rem] border border-slate-200 shadow-lg">
                    <h4 className="text-sm font-black text-slate-800 mb-4">{labels.summaryTitle}</h4>
@@ -321,13 +369,12 @@ const MainDashboard: React.FC<{ user: User; patientInfo: PatientInfo; setPatient
                 </div>
               )}
 
-              {/* Guard Controls */}
               <div className="p-8 bg-white rounded-[3.5rem] border border-slate-200 shadow-sm">
                  <h4 className="font-black text-slate-900 text-sm uppercase tracking-tight mb-6">{labels.safetyMode}</h4>
-                 <button onClick={() => setRemindersArmed(!remindersArmed)} className={`w-full py-5 rounded-2xl font-black text-xs uppercase transition-all ${remindersArmed ? 'bg-emerald-50 text-emerald-600' : 'bg-blue-600 text-white'}`}>
+                 <button onClick={() => setRemindersArmed(!remindersArmed)} className={`w-full py-5 rounded-2xl font-black text-xs uppercase transition-all ${remindersArmed ? 'bg-emerald-50 text-emerald-600 border-2 border-emerald-100' : 'bg-blue-600 text-white shadow-xl'}`}>
                    {remindersArmed ? labels.stopGuard : labels.startGuard}
                  </button>
-                 <button onClick={() => triggerCall(effectiveAnalysis.medicines[0])} className="w-full mt-6 text-[10px] font-black text-slate-400 uppercase flex items-center justify-center gap-2">
+                 <button onClick={() => triggerCall(effectiveAnalysis.medicines[0])} className="w-full mt-6 text-[10px] font-black text-slate-400 uppercase flex items-center justify-center gap-2 hover:text-blue-600 transition-colors">
                    <span>📞</span> {labels.testCall}
                  </button>
               </div>
@@ -348,23 +395,29 @@ const MainDashboard: React.FC<{ user: User; patientInfo: PatientInfo; setPatient
   );
 };
 
-const LoginPage: React.FC<{ onLogin: (n: string, r: UserRole) => void }> = ({ onLogin }) => {
+const LoginPage: React.FC<{ onLogin: (n: string, r: UserRole) => void; lang: Language }> = ({ onLogin, lang }) => {
   const [name, setName] = useState('');
   const [role, setRole] = useState<UserRole>('PATIENT');
   const navigate = useNavigate();
+  const labels = UI_STRINGS[lang] || UI_STRINGS.en;
+  const roleLabels = ROLES_LABELS[lang] || ROLES_LABELS.en;
+
   return (
     <div className="min-h-screen bg-slate-50 flex items-center justify-center p-6">
-      <div className="max-w-md w-full bg-white p-12 rounded-[3.5rem] shadow-2xl text-center border border-slate-100">
-        <h2 className="text-3xl font-black mb-8 tracking-tighter">Enter Care Room</h2>
-        <input type="text" className="w-full px-6 py-5 rounded-2xl bg-slate-50 border-2 border-slate-100 text-lg font-bold mb-6" placeholder="Your Name" value={name} onChange={e => setName(e.target.value)} />
+      <div className="max-w-md w-full bg-white p-12 rounded-[3.5rem] shadow-2xl text-center border border-slate-100 animate-in zoom-in-95 duration-700">
+        <div className="w-20 h-20 bg-blue-600 rounded-[2rem] mx-auto flex items-center justify-center text-white text-4xl font-black mb-8 shadow-xl">S</div>
+        <h2 className="text-3xl font-black mb-8 tracking-tighter">{labels.loginTitle}</h2>
+        <input type="text" className="w-full px-6 py-5 rounded-2xl bg-slate-50 border-2 border-slate-100 text-lg font-bold mb-6 outline-none focus:border-blue-600 transition-all" placeholder={labels.namePlaceholder} value={name} onChange={e => setName(e.target.value)} />
         <div className="grid grid-cols-2 gap-3 mb-8">
           {(['PATIENT', 'NURSE', 'CHILD', 'GUARDIAN', 'SPOUSE'] as UserRole[]).map(r => (
-            <button key={r} onClick={() => setRole(r)} className={`py-3 rounded-xl border-2 font-black text-[10px] transition-all ${role === r ? 'bg-slate-900 text-white border-slate-900' : 'bg-slate-50 text-slate-500 border-slate-100'}`}>
-              {r}
+            <button key={r} onClick={() => setRole(r)} className={`py-3 rounded-xl border-2 font-black text-[10px] transition-all ${role === r ? 'bg-slate-900 text-white border-slate-900 shadow-md' : 'bg-slate-50 text-slate-500 border-slate-100 hover:border-slate-300'}`}>
+              {roleLabels[r]}
             </button>
           ))}
         </div>
-        <button onClick={() => { if(name) { onLogin(name, role); navigate('/app'); } }} className="w-full py-5 bg-blue-600 text-white font-black rounded-2xl shadow-xl transition-all">Enter Session</button>
+        <button onClick={() => { if(name) { onLogin(name, role); navigate('/app'); } }} className="w-full py-5 bg-blue-600 text-white font-black rounded-2xl shadow-xl hover:bg-blue-700 transition-all">
+          {labels.loginAction}
+        </button>
       </div>
     </div>
   );
@@ -390,7 +443,13 @@ const ApiKeyGuard: React.FC<{ children: React.ReactNode }> = ({ children }) => {
   if (hasKey === null) return null;
   if (!hasKey) return (
     <div className="min-h-screen bg-slate-950 flex items-center justify-center p-6">
-      <button onClick={async () => { await (window as any).aistudio.openSelectKey(); setHasKey(true); }} className="bg-white text-slate-900 px-12 py-6 rounded-3xl font-black text-xl shadow-2xl">Activate API Key</button>
+      <div className="max-w-md w-full bg-white p-12 rounded-[4rem] text-center shadow-2xl">
+        <h2 className="text-3xl font-black mb-6 tracking-tighter">Activate System</h2>
+        <p className="text-slate-500 font-bold mb-8">Please select a valid API key to enable clinical scanning and AI voice assistants.</p>
+        <button onClick={async () => { await (window as any).aistudio.openSelectKey(); setHasKey(true); }} className="w-full bg-blue-600 text-white px-12 py-6 rounded-3xl font-black text-xl shadow-xl hover:bg-blue-700 transition-all">
+          Activate API Key
+        </button>
+      </div>
     </div>
   );
   return <>{children}</>;
@@ -412,7 +471,7 @@ const App: React.FC = () => {
         <Nav user={user} onLogout={handleLogout} lang={patientInfo.language} />
         <Routes>
           <Route path="/" element={<LandingPage isAuthenticated={isAuthenticated} />} />
-          <Route path="/login" element={<LoginPage onLogin={login} />} />
+          <Route path="/login" element={<LoginPage onLogin={login} lang={patientInfo.language} />} />
           <Route path="/app" element={isAuthenticated ? <MainDashboard user={user!} patientInfo={patientInfo} setPatientInfo={setPatientInfo} /> : <Navigate to="/login" />} />
         </Routes>
       </ApiKeyGuard>

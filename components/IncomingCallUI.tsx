@@ -41,28 +41,28 @@ const IncomingCallUI: React.FC<IncomingCallUIProps> = ({
         `Hello. This is your SmartCare safety assistant. It is time for your medication: ${dose} of ${med}. My records indicate: ${inst}. Please consume your medication immediately.`
     },
     hi: {
-      incoming: "प्राथमिक स्वास्थ्य कॉल",
+      incoming: "ज़रूरी स्वास्थ्य कॉल",
       answered: "सुरक्षित सत्र",
       decline: "काटें",
-      answer: "स्वीकार करें",
-      hangup: "समाप्त करें",
-      doseReminder: "दवा का समय",
+      answer: "बात करें",
+      hangup: "फोन रखें",
+      doseReminder: "दवा का समय हो गया है",
       schedule: "रोगी निर्देश",
       aiFinish: "रिकॉर्ड अपडेट हो रहे हैं...",
       speak: (med: string, dose: string, inst: string) => 
-        `नमस्ते। यह आपका स्मार्टकेयर सुरक्षा सहायक है। आपकी दवा का समय हो गया है: ${med} की ${dose}। मेरे पास निर्देश हैं: ${inst}। कृपया अपनी दवा तुरंत लें।`
+        `नमस्ते। यह आपका स्मार्टकेयर सुरक्षा सहायक है। आपकी दवा का समय हो गया है। आपको ${med} की ${dose} लेनी है। निर्देश हैं: ${inst}। कृपया अपनी दवा तुरंत लें और अपना ध्यान रखें।`
     },
     te: {
       incoming: "ముఖ్యమైన ఆరోగ్య కాల్",
       answered: "సురక్షిత సెషన్",
-      decline: "తిరస్కరించు",
-      answer: "స్వీకరించు",
+      decline: "వద్దు",
+      answer: "మాట్లాడండి",
       hangup: "ముగించు",
-      doseReminder: "మందుల సమయం",
+      doseReminder: "మందుల సమయం అయింది",
       schedule: "రోగి మార్గదర్శకాలు",
       aiFinish: "అప్‌డేట్ అవుతోంది...",
       speak: (med: string, dose: string, inst: string) => 
-        `నమస్కారం. ఇది మీ స్మార్ట్‌కేర్ రక్షణ సహాయకుడిని. మీ మందుల సమయం అయింది. మందు పేరు: ${med}, మోతాదు: ${dose}. సూచనలు: ${inst}. దయచేసి ఇప్పుడే మీ మందు తీసుకోండి.`
+        `నమస్కారం. ఇది మీ స్మార్ట్‌కేర్ రక్షణ సహాయకుడిని. మీ మందుల సమయం అయింది. మీరు ${med} యొక్క ${dose} మోతాదు తీసుకోవాలి. సూచనలు ఇవి: ${inst}. దయచేసి ఇప్పుడే మీ మందు తీసుకోండి.`
     }
   }[lang] || {
     en: {
@@ -74,7 +74,7 @@ const IncomingCallUI: React.FC<IncomingCallUIProps> = ({
       doseReminder: "Medicine Due Now",
       schedule: "Patient Directive",
       aiFinish: "Updating logs...",
-      speak: (med: string, dose: string, inst: string) => `Hello...`
+      speak: (med: string, dose: string, inst: string) => `Hello. Time for medicine.`
     }
   };
 
@@ -114,7 +114,6 @@ const IncomingCallUI: React.FC<IncomingCallUIProps> = ({
   const handleHangup = () => {
     setIsHangingUp(true);
     forceStopSpeech();
-    // Small delay to allow visual transition before unmounting
     setTimeout(() => {
       onDecline();
     }, 500);
@@ -129,7 +128,6 @@ const IncomingCallUI: React.FC<IncomingCallUIProps> = ({
         </div>
       )}
 
-      {/* Header Info */}
       <div className="text-center space-y-6 relative z-10 px-6 shrink-0">
         <div className={`w-28 h-28 bg-blue-600 rounded-[2.5rem] mx-auto flex items-center justify-center text-5xl shadow-[0_0_40px_rgba(37,99,235,0.4)] border-4 border-white/20 transition-all ${isAnswered ? 'scale-90 opacity-80' : 'animate-bounce'}`}>
           {isHangingUp ? '👋' : '🤖'}
@@ -142,7 +140,6 @@ const IncomingCallUI: React.FC<IncomingCallUIProps> = ({
         </div>
       </div>
 
-      {/* Main Content Area */}
       <div className="flex-1 w-full flex flex-col items-center justify-center px-6 overflow-hidden">
         {isAnswered && !isHangingUp ? (
           <div className="max-w-md w-full animate-in zoom-in-95 duration-500 text-center flex flex-col h-full max-h-[60%] justify-center">
@@ -182,7 +179,6 @@ const IncomingCallUI: React.FC<IncomingCallUIProps> = ({
         ) : null}
       </div>
 
-      {/* Action Controls - Fixed at Bottom */}
       <div className="w-full max-w-sm px-8 relative z-50 shrink-0">
         {!isAnswered ? (
           <div className="flex justify-around items-center">
