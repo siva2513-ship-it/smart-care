@@ -1,7 +1,7 @@
 
 import React, { useState, useEffect, useCallback, useMemo } from 'react';
 import { HashRouter as Router, Routes, Route, Link, useNavigate, Navigate, useLocation } from 'react-router-dom';
-import { PrescriptionAnalysis, TimeOfDay, ReminderPreference, PatientInfo, User, Medicine, Language, UserRole } from './types.ts';
+import { PrescriptionAnalysis, TimeOfDay, ReminderPreference, PatientInfo, User, Medicine, Language, UserRole } from './types';
 import { geminiService } from './services/geminiService';
 import { MOCK_PRESCRIPTION_DATA, TIME_ICONS } from './constants';
 import PrescriptionUpload from './components/PrescriptionUpload';
