@@ -22,6 +22,8 @@ export interface Medicine {
   name: string;
   dosage: string;
   timing: TimeOfDay[];
+  specificTime?: string; // e.g. "08:00 AM"
+  mealInstruction?: 'Before Food' | 'After Food' | 'With Food' | 'Empty Stomach' | 'None';
   instructions: string;
   icon: string;
   color: string;
