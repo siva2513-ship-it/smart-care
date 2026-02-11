@@ -1,11 +1,10 @@
 
 import React from 'react';
 import ReactDOM from 'react-dom/client';
-import App from './App.tsx';
+import App from './App';
 import './style.css';
 
-// Shim process.env for browser compatibility in production/Vercel environments
-// Cast window to any to safely check and assign the process property in a browser context
+// Shim process.env for browser compatibility
 if (typeof window !== 'undefined' && !(window as any).process) {
   (window as any).process = { env: { API_KEY: '' } };
 }

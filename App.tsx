@@ -1,5 +1,5 @@
 
-import React, { useState, useEffect, useCallback } from 'react';
+import React, { useState, useEffect, useCallback, useMemo } from 'react';
 import { HashRouter as Router, Routes, Route, Link, useNavigate, Navigate, useLocation } from 'react-router-dom';
 import { PrescriptionAnalysis, TimeOfDay, ReminderPreference, PatientInfo, User, Medicine, Language, UserRole } from './types.ts';
 import { geminiService } from './services/geminiService.ts';
@@ -10,29 +10,19 @@ import VoiceAssistant from './components/VoiceAssistant.tsx';
 import SmartChatbot from './components/SmartChatbot.tsx';
 import IncomingCallUI from './components/IncomingCallUI.tsx';
 
-// --- TRANSLATIONS ---
-
 const UI_STRINGS = {
   en: {
     home: "Home",
     setupProfile: "Setup Profile",
     ageLabel: "Patient Age",
-    conditionLabel: "Condition",
     langLabel: "Language",
-    caregiverLabel: "Who is monitoring?",
     scanBtn: "Analyze Prescription",
     dashboard: "Care Dashboard",
     routine: "Current Schedule",
     summaryTitle: "Health Intelligence",
-    safetyMode: "Voice Guard",
-    startGuard: "Activate Voice Guard",
-    stopGuard: "Deactivate Monitoring",
-    testCall: "Run Safety Test",
-    armed: "Monitoring",
-    off: "Standby",
-    inspectedBy: "Primary Caregiver",
-    careCircle: "Safety Shield Active",
-    statusBadge: "Protection Status",
+    nextDose: "Up Next",
+    takeNow: "Due Now",
+    allDone: "All medications taken for this slot!",
     loginTitle: "Enter Care Room",
     loginAction: "Enter Session",
     namePlaceholder: "Your Name"
@@ -41,22 +31,14 @@ const UI_STRINGS = {
     home: "मुख्य पृष्ठ",
     setupProfile: "प्रोफ़ाइल सेटअप",
     ageLabel: "रोगी की आयु",
-    conditionLabel: "बीमारी",
     langLabel: "भाषा",
-    caregiverLabel: "निगरानी कौन कर रहा है?",
     scanBtn: "पर्चा स्कैन करें",
     dashboard: "केयर डैशबोर्ड",
     routine: "दवा की समय सारणी",
     summaryTitle: "स्वास्थ्य जानकारी",
-    safetyMode: "वॉयस गार्ड",
-    startGuard: "वॉयस गार्ड सक्रिय करें",
-    stopGuard: "निगरानी बंद करें",
-    testCall: "सुरक्षा परीक्षण",
-    armed: "सक्रिय",
-    off: "बंद",
-    inspectedBy: "मुख्य देखभालकर्ता",
-    careCircle: "सुरक्षा कवच सक्रिय",
-    statusBadge: "सुरक्षा स्थिति",
+    nextDose: "अगली खुराक",
+    takeNow: "अभी लेनी है",
+    allDone: "इस समय की सभी दवाएं ले ली गई हैं!",
     loginTitle: "देखभाल कक्ष में प्रवेश करें",
     loginAction: "सत्र शुरू करें",
     namePlaceholder: "आपका नाम"
@@ -65,38 +47,32 @@ const UI_STRINGS = {
     home: "హోమ్",
     setupProfile: "ప్రొఫైల్ సెటప్",
     ageLabel: "రోగి వయస్సు",
-    conditionLabel: "పరిస్థితి",
     langLabel: "భాష",
-    caregiverLabel: "ఎవరు పర్యవేక్షిస్తున్నారు?",
     scanBtn: "ప్రిస్క్రిప్షన్ స్కాన్ చేయండి",
     dashboard: "కేర్ డాష్‌బోర్డ్",
     routine: "ప్రస్తుత షెడ్యూల్",
     summaryTitle: "ఆరోగ్య మేధస్సు",
-    safetyMode: "వాయిస్ గార్డ్",
-    startGuard: "వాయిస్ గార్డ్ ప్రారంభించండి",
-    stopGuard: "పర్యవేక్షణ ఆపివేయి",
-    testCall: "భద్రతా పరీక్ష",
-    armed: "పర్యవేక్షణలో ఉంది",
-    off: "స్టాండ్‌బై",
-    inspectedBy: "ప్రధాన సంరక్షకుడు",
-    careCircle: "రక్షణ కవచం యాక్టివ్‌గా ఉంది",
-    statusBadge: "రక్షణ స్థితి",
+    nextDose: "తదుపరి మోతాదు",
+    takeNow: "ఇప్పుడే తీసుకోవాలి",
+    allDone: "ఈ సమయానికి సంబంధించిన అన్ని మందులు తీసుకున్నారు!",
     loginTitle: "కేర్ రూమ్‌లోకి ప్రవేశించండి",
     loginAction: "సెషన్‌ను ప్రారంభించండి",
     namePlaceholder: "మీ పేరు"
   }
 };
 
-const RELATIONSHIPS = {
-  en: ["Child", "Spouse", "Nurse", "Guardian", "Self"],
-  hi: ["बच्चा", "जीवनसाथी", "नर्स", "अभिभावक", "स्वयं"],
-  te: ["పిల్లలు", "భార్య/భర్త", "నర్స్", "సంరక్షకుడు", "నేనే"]
-};
-
 const ROLES_LABELS = {
   en: { PATIENT: 'Patient', NURSE: 'Nurse', CHILD: 'Child', GUARDIAN: 'Guardian', SPOUSE: 'Spouse' },
   hi: { PATIENT: 'रोगी', NURSE: 'नर्स', CHILD: 'बच्चा', GUARDIAN: 'अभिभावक', SPOUSE: 'जीवनसाथी' },
-  te: { PATIENT: 'రోగి', NURSE: 'నర్స్', CHILD: 'పిల్లలు', GUARDIAN: 'సంరక్షకుడు', SPOUSE: 'భార్య/భర్త' }
+  te: { PATIENT: 'రోగి', NURSE: 'नర్స్', CHILD: 'పిల్లలు', GUARDIAN: 'సంరక్షకుడు', SPOUSE: 'భార్య/భర్త' }
+};
+
+const getCurrentTimeOfDay = (): TimeOfDay => {
+  const hour = new Date().getHours();
+  if (hour >= 5 && hour < 12) return TimeOfDay.MORNING;
+  if (hour >= 12 && hour < 17) return TimeOfDay.AFTERNOON;
+  if (hour >= 17 && hour < 21) return TimeOfDay.EVENING;
+  return TimeOfDay.NIGHT;
 };
 
 const useAuth = () => {
@@ -165,18 +141,18 @@ const LandingPage: React.FC<{ isAuthenticated: boolean }> = ({ isAuthenticated }
           <span className="w-2 h-2 bg-blue-500 rounded-full animate-ping"></span>
           <span className="text-xs font-black text-blue-600 uppercase tracking-widest">Powered by Gemini 3 Flash</span>
         </div>
-        <h1 className="text-6xl md:text-8xl font-black text-slate-900 leading-[0.9] tracking-tighter mb-8">
-          Care Beyond<br/>
-          <span className="text-blue-600">Handwriting.</span>
+        <h1 className="text-6xl md:text-8xl font-black text-slate-900 leading-[0.9] tracking-tighter mb-8 text-balance">
+          Healthcare from<br/>
+          <span className="text-blue-600">Prescription to Protection.</span>
         </h1>
         <p className="text-xl text-slate-500 mb-12 max-w-2xl font-medium leading-relaxed">
-          Translates doctors' literal notes into real-time voice guidance.
+          Deciphers clinical handwriting and automates your care routine with intelligent voice calls.
         </p>
         <button 
           onClick={() => navigate('/app')}
-          className="px-14 py-6 bg-slate-900 text-white text-xl font-black rounded-3xl shadow-2xl hover:bg-blue-600 hover:-translate-y-1 active:translate-y-0 transition-all mb-24"
+          className="px-14 py-6 bg-slate-900 text-white text-xl font-black rounded-3xl shadow-2xl hover:bg-blue-600 hover:-translate-y-1 active:translate-y-0 transition-all"
         >
-          {isAuthenticated ? 'Open Dashboard' : 'Get Started Free'}
+          {isAuthenticated ? 'Open Care Dashboard' : 'Start My Care Room'}
         </button>
       </section>
     </div>
@@ -191,26 +167,15 @@ const MainDashboard: React.FC<{ user: User; patientInfo: PatientInfo; setPatient
     const saved = localStorage.getItem('scr_taken_keys');
     return saved ? new Set(JSON.parse(saved)) : new Set();
   });
-  const [reminderPref, setReminderPref] = useState<ReminderPreference>('voice');
-  const [remindersArmed, setRemindersArmed] = useState(false);
-  const [simulatedTime, setSimulatedTime] = useState<TimeOfDay>(TimeOfDay.MORNING);
-  const [activeCallMed, setActiveCallMed] = useState<Medicine | null>(null);
-  const [showCallUI, setShowCallUI] = useState(false);
-  const [lastCallEndedAt, setLastCallEndedAt] = useState<number | null>(null);
+  const [simulatedTime, setSimulatedTime] = useState<TimeOfDay>(getCurrentTimeOfDay());
 
   const effectiveAnalysis = analysis || MOCK_PRESCRIPTION_DATA;
   const labels = UI_STRINGS[patientInfo.language] || UI_STRINGS.en;
-  
-  const triggerCall = (med: Medicine) => {
-    setActiveCallMed(med);
-    setShowCallUI(true);
-  };
 
-  const handleCallDecline = () => {
-    setShowCallUI(false);
-    setActiveCallMed(null);
-    setLastCallEndedAt(Date.now());
-  };
+  const nextMedication = useMemo(() => {
+    const medsInSlot = effectiveAnalysis.medicines.filter(m => m.timing.includes(simulatedTime));
+    return medsInSlot.find(m => !takenKeys.has(`${m.id}-${simulatedTime}`));
+  }, [effectiveAnalysis, simulatedTime, takenKeys]);
 
   const handleDataReady = async (source: string) => {
     setIsProcessing(true);
@@ -253,19 +218,6 @@ const MainDashboard: React.FC<{ user: User; patientInfo: PatientInfo; setPatient
 
   return (
     <div className="min-h-screen pb-24 bg-[#F8FAFC]">
-      {showCallUI && activeCallMed && (
-        <IncomingCallUI 
-          callerName="SmartCare Safety Guard"
-          medicineName={activeCallMed.name}
-          dosage={activeCallMed.dosage}
-          instructions={activeCallMed.instructions}
-          timeOfDay={simulatedTime}
-          lang={patientInfo.language}
-          onAccept={() => {}}
-          onDecline={handleCallDecline}
-        />
-      )}
-      
       <div className="container mx-auto px-6 pt-8">
         {step === 'onboarding' && (
           <div className="max-w-md mx-auto bg-white p-12 rounded-[4rem] shadow-2xl border border-slate-100">
@@ -273,7 +225,7 @@ const MainDashboard: React.FC<{ user: User; patientInfo: PatientInfo; setPatient
             <div className="space-y-8">
               <div className="space-y-2">
                 <label className="text-[10px] font-black text-slate-400 uppercase tracking-[0.2em] px-1">{labels.ageLabel}</label>
-                <input type="number" className="w-full px-7 py-5 rounded-2xl bg-slate-50 border-2 border-slate-100 text-2xl font-black outline-none focus:border-blue-600" placeholder="e.g. 75" value={patientInfo.age} onChange={e => setPatientInfo({...patientInfo, age: e.target.value})} />
+                <input type="number" className="w-full px-7 py-5 rounded-2xl bg-slate-50 border-2 border-slate-100 text-2xl font-black outline-none focus:border-blue-600" placeholder="75" value={patientInfo.age} onChange={e => setPatientInfo({...patientInfo, age: e.target.value})} />
               </div>
               
               <div className="space-y-2">
@@ -296,55 +248,77 @@ const MainDashboard: React.FC<{ user: User; patientInfo: PatientInfo; setPatient
 
         {step === 'upload' && <PrescriptionUpload onUpload={handleDataReady} isProcessing={isProcessing} />}
 
-        {step === 'dashboard' && effectiveAnalysis && (
-          <div className="grid grid-cols-1 lg:grid-cols-12 gap-8 animate-in fade-in duration-700">
-            <div className="lg:col-span-8 space-y-8">
-              <div className="bg-white p-8 rounded-[3.5rem] border border-slate-200 shadow-sm flex flex-col gap-6">
-                <div className="flex flex-col md:flex-row items-center justify-between gap-6">
-                  <div>
-                    <h3 className="font-black text-slate-900 text-2xl tracking-tight">{labels.routine}</h3>
-                    {effectiveAnalysis.doctorName && (
-                      <p className="text-xs font-bold text-slate-400 mt-1 uppercase tracking-widest">Read from: {effectiveAnalysis.doctorName} • {effectiveAnalysis.date}</p>
-                    )}
+        {step === 'dashboard' && (
+          <div className="space-y-8 animate-in fade-in slide-in-from-bottom-4 duration-700">
+            {/* PULSE BANNER */}
+            <div className={`p-8 rounded-[3.5rem] border-4 transition-all ${nextMedication ? 'bg-blue-600 border-blue-500 text-white shadow-[0_20px_60px_rgba(37,99,235,0.4)]' : 'bg-emerald-50 border-emerald-100 text-emerald-900'}`}>
+               <div className="flex flex-col md:flex-row items-center justify-between gap-6">
+                 <div className="flex items-center gap-6">
+                    <div className="w-16 h-16 bg-white/20 rounded-2xl flex items-center justify-center text-4xl backdrop-blur-md">
+                      {nextMedication ? '💊' : '✨'}
+                    </div>
+                    <div>
+                      <h4 className="text-[11px] font-black uppercase tracking-[0.4em] opacity-80">{nextMedication ? labels.nextDose : labels.allDone}</h4>
+                      <p className="text-3xl font-black tracking-tighter">
+                        {nextMedication ? `${nextMedication.name} (${nextMedication.dosage})` : labels.allDone}
+                      </p>
+                    </div>
+                 </div>
+                 {nextMedication && (
+                    <button onClick={() => markAsTaken(nextMedication.id, simulatedTime)} className="px-10 py-4 bg-white text-blue-600 font-black rounded-2xl shadow-xl hover:scale-105 transition-all">
+                       {labels.takeNow}
+                    </button>
+                 )}
+               </div>
+            </div>
+
+            <div className="grid grid-cols-1 lg:grid-cols-12 gap-8">
+              <div className="lg:col-span-8 space-y-8">
+                <div className="bg-white p-8 rounded-[3.5rem] border border-slate-200 shadow-sm flex flex-col gap-6">
+                  <div className="flex flex-col md:flex-row items-center justify-between gap-6">
+                    <div>
+                      <h3 className="font-black text-slate-900 text-2xl tracking-tight">{labels.routine}</h3>
+                      <p className="text-[10px] font-black text-slate-400 mt-1 uppercase tracking-widest">Selected Window: {simulatedTime}</p>
+                    </div>
+                    <div className="flex bg-slate-100 p-1.5 rounded-2xl border border-slate-200 overflow-x-auto">
+                      {Object.values(TimeOfDay).map(t => (
+                        <button key={t} onClick={() => setSimulatedTime(t)} className={`px-5 py-2.5 rounded-xl font-black text-xs transition-all whitespace-nowrap ${simulatedTime === t ? 'bg-white shadow-md text-blue-600' : 'text-slate-400'}`}>
+                          {timeLabel(t)}
+                        </button>
+                      ))}
+                    </div>
                   </div>
-                  <div className="flex bg-slate-100 p-1.5 rounded-2xl border border-slate-200">
-                    {Object.values(TimeOfDay).map(t => (
-                      <button key={t} onClick={() => setSimulatedTime(t)} className={`px-5 py-2.5 rounded-xl font-black text-xs transition-all ${simulatedTime === t ? 'bg-white shadow-md text-blue-600' : 'text-slate-400'}`}>
-                        {timeLabel(t)}
-                      </button>
-                    ))}
-                  </div>
+                </div>
+
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-6">
+                  {[TimeOfDay.MORNING, TimeOfDay.AFTERNOON, TimeOfDay.EVENING, TimeOfDay.NIGHT].map(time => (
+                    <ScheduleCard 
+                      key={time} 
+                      time={time} 
+                      medicines={effectiveAnalysis.medicines.filter(m => m.timing.includes(time))} 
+                      takenKeys={takenKeys} 
+                      onMarkTaken={markAsTaken}
+                      lang={patientInfo.language}
+                    />
+                  ))}
                 </div>
               </div>
 
-              <div className="grid grid-cols-1 sm:grid-cols-2 gap-6">
-                {[TimeOfDay.MORNING, TimeOfDay.AFTERNOON, TimeOfDay.EVENING, TimeOfDay.NIGHT].map(time => (
-                  <ScheduleCard 
-                    key={time} 
-                    time={time} 
-                    medicines={effectiveAnalysis.medicines.filter(m => m.timing.includes(time))} 
-                    takenKeys={takenKeys} 
-                    onMarkTaken={markAsTaken}
-                    lang={patientInfo.language}
-                  />
-                ))}
-              </div>
-            </div>
+              <div className="lg:col-span-4 space-y-8">
+                <div className="p-8 bg-white rounded-[3.5rem] border border-slate-200 shadow-lg">
+                   <h4 className="text-sm font-black text-slate-800 mb-4">{labels.summaryTitle}</h4>
+                   <p className="text-slate-600 text-sm font-bold leading-relaxed mb-8 italic">{effectiveAnalysis.summary}</p>
+                   <VoiceAssistant text={effectiveAnalysis.summary} lang={patientInfo.language} />
+                </div>
 
-            <div className="lg:col-span-4 space-y-8">
-              <div className="p-8 bg-white rounded-[3.5rem] border border-slate-200 shadow-lg">
-                 <h4 className="text-sm font-black text-slate-800 mb-4">{labels.summaryTitle}</h4>
-                 <p className="text-slate-600 text-sm font-bold leading-relaxed mb-8 italic">{effectiveAnalysis.summary}</p>
-                 <VoiceAssistant text={effectiveAnalysis.summary} lang={patientInfo.language} />
+                <SmartChatbot 
+                  analysis={effectiveAnalysis} 
+                  onSetReminders={() => {}} 
+                  activePreference={'voice'} 
+                  patientInfo={patientInfo} 
+                  role={user.role}
+                />
               </div>
-
-              <SmartChatbot 
-                analysis={effectiveAnalysis} 
-                onSetReminders={setReminderPref} 
-                activePreference={reminderPref} 
-                patientInfo={patientInfo} 
-                role={user.role}
-              />
             </div>
           </div>
         )}
@@ -383,7 +357,6 @@ const LoginPage: React.FC<{ onLogin: (n: string, r: UserRole) => void; lang: Lan
 
 const ApiKeyGuard: React.FC<{ children: React.ReactNode }> = ({ children }) => {
   const [hasKey, setHasKey] = useState<boolean | null>(null);
-  const location = useLocation();
   
   useEffect(() => {
     const checkKey = async () => {
@@ -392,7 +365,7 @@ const ApiKeyGuard: React.FC<{ children: React.ReactNode }> = ({ children }) => {
       try { const s = await win.aistudio.hasSelectedApiKey(); setHasKey(s); } catch (e) { setHasKey(true); }
     };
     checkKey();
-  }, [location.key]);
+  }, []);
 
   if (hasKey === null) return <div className="min-h-screen bg-slate-50 flex items-center justify-center font-black">Booting System...</div>;
   if (!hasKey) return (

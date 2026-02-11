@@ -30,19 +30,18 @@ export class GeminiService {
     const ai = new GoogleGenAI({ apiKey: process.env.API_KEY });
     const langName = this.getLanguageName(patientInfo.language);
     
-    const systemInstruction = `ACT AS A SENIOR CLINICAL PHARMACIST AND OCR EXPERT.
+    const systemInstruction = `ACT AS A SENIOR CLINICAL PHARMACIST AND FORENSIC OCR EXPERT.
     GOAL: Literal and Intelligent Extraction from Prescription Images.
 
     EXTRACTION PROTOCOL:
-    1. LITERAL OCR: Extract exact drug names and strengths (e.g., "Metformin 500mg").
-    2. TIMING RESOLUTION: Map doctors' shorthand (OD, BD, TDS, HS) to specific TimeOfDay categories (Morning, Afternoon, Evening, Night).
-    3. MEAL RELATIONSHIP: Specifically look for "AC" (Before Food) or "PC" (After Food) or handwritten notes like "khali pet".
-    4. TIME SUGGESTION: Suggest a logical hour (e.g., 08:00 AM) for each dose if not explicitly stated.
-    5. SAFETY: Check if the dosage is standard for a ${patientInfo.age}yo patient with ${patientInfo.condition}.
+    1. LITERAL OCR: Extract exact drug names. If messy, use PHARMACOLOGICAL CROSS-CHECK: contextually identify the drug based on condition: ${patientInfo.condition}.
+    2. TIMING RESOLUTION: Map shorthand (OD, BD, TDS, QID, HS) to (Morning, Afternoon, Evening, Night).
+    3. MEAL RELATIONSHIP: Specifically look for "AC/PC" or notes like "khali pet" or "after food".
+    4. TIME SUGGESTION: Suggest a logical specific hour (e.g., 08:00 AM) for adherence.
+    5. SAFETY: Flag any instructions that seem unusual for a ${patientInfo.age}yo patient.
 
     OUTPUT SCHEMA:
     - doctorName: string
-    - date: string
     - medicines: [{
         name, 
         dosage, 
@@ -66,7 +65,7 @@ export class GeminiService {
                 data: base64Image.split(',')[1] || base64Image
               }
             },
-            { text: `Analyze this medical prescription for a ${patientInfo.age}yo. Output instructions in ${langName}.` }
+            { text: `Analyze this medical prescription for a ${patientInfo.age} year old. Instructions in ${langName}.` }
           ]
         },
         config: {
@@ -77,7 +76,6 @@ export class GeminiService {
             type: Type.OBJECT,
             properties: {
               doctorName: { type: Type.STRING },
-              date: { type: Type.STRING },
               medicines: {
                 type: Type.ARRAY,
                 items: {
@@ -87,10 +85,7 @@ export class GeminiService {
                     dosage: { type: Type.STRING },
                     timing: { type: Type.ARRAY, items: { type: Type.STRING } },
                     specificTime: { type: Type.STRING },
-                    mealInstruction: { 
-                      type: Type.STRING, 
-                      enum: ['Before Food', 'After Food', 'With Food', 'Empty Stomach', 'None'] 
-                    },
+                    mealInstruction: { type: Type.STRING, enum: ['Before Food', 'After Food', 'With Food', 'Empty Stomach', 'None'] },
                     instructions: { type: Type.STRING },
                     color: { type: Type.STRING },
                     drugClass: { type: Type.STRING },
@@ -129,9 +124,9 @@ export class GeminiService {
         model: 'gemini-3-flash-preview',
         config: {
           tools: [{ googleSearch: {} }],
-          systemInstruction: `You are the SmartCare Senior Medical Assistant. 
+          systemInstruction: `You are the SmartCare Senior Assistant. 
           Current medications: ${medicines.map(m => `${m.name} (${m.mealInstruction})`).join(', ')}.
-          Patient Language: ${langName}.`
+          Respond strictly in ${langName}.`
         }
       });
 
