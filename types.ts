@@ -30,6 +30,8 @@ export interface Medicine {
   drugClass?: string;
   sideEffects?: string[];
   interactions?: string;
+  confidenceScore: number; // 0.0 to 1.0
+  verificationStatus: 'verified' | 'unverified' | 'ambiguous';
 }
 
 export interface PatientInfo {
@@ -45,6 +47,7 @@ export interface PrescriptionAnalysis {
   doctorName?: string;
   date?: string;
   summary: string;
+  scanAccuracy: number;
 }
 
 export type ReminderPreference = 'voice' | 'notification' | 'both';
@@ -53,13 +56,5 @@ export interface ChatMessage {
   id: string;
   text: string;
   sender: 'ai' | 'user';
-  timestamp: Date;
-}
-
-export interface CaregiverAlert {
-  id: string;
-  medicineName: string;
-  status: 'missed' | 'taken';
-  time: string;
   timestamp: Date;
 }

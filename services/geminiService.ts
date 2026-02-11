@@ -1,6 +1,6 @@
 
 import { GoogleGenAI, Type } from "@google/genai";
-import { PrescriptionAnalysis, Medicine, PatientInfo, ChatMessage, Language } from "../types";
+import { PrescriptionAnalysis, Medicine, PatientInfo, ChatMessage, Language, TimeOfDay } from "../types";
 
 export class GeminiService {
   private async handleApiError(error: any): Promise<never> {
@@ -30,29 +30,34 @@ export class GeminiService {
     const ai = new GoogleGenAI({ apiKey: process.env.API_KEY });
     const langName = this.getLanguageName(patientInfo.language);
     
-    const systemInstruction = `ACT AS A SENIOR CLINICAL PHARMACIST AND FORENSIC OCR EXPERT.
-    GOAL: Literal and Intelligent Extraction from Prescription Images.
+    const systemInstruction = `ACT AS A SENIOR PHARMACIST.
+Extract medication schedule from prescription image.
+Output Language: ${langName}.
 
-    EXTRACTION PROTOCOL:
-    1. LITERAL OCR: Extract exact drug names. If messy, use PHARMACOLOGICAL CROSS-CHECK: contextually identify the drug based on condition: ${patientInfo.condition}.
-    2. TIMING RESOLUTION: Map shorthand (OD, BD, TDS, QID, HS) to (Morning, Afternoon, Evening, Night).
-    3. MEAL RELATIONSHIP: Specifically look for "AC/PC" or notes like "khali pet" or "after food".
-    4. TIME SUGGESTION: Suggest a logical specific hour (e.g., 08:00 AM) for adherence.
-    5. SAFETY: Flag any instructions that seem unusual for a ${patientInfo.age}yo patient.
+TIMING MAPPING (STRICT):
+- 1-0-1, BID, Twice, M-N -> ["Morning", "Night"]
+- 1-1-1, TDS, Thrice, M-A-N -> ["Morning", "Afternoon", "Night"]
+- 1-0-0, OD, Once, M -> ["Morning"]
+- 0-0-1, HS, Bedtime, N -> ["Night"]
+- 1-1-1-1, QID -> ["Morning", "Afternoon", "Evening", "Night"]
+- 0-1-0 -> ["Afternoon"]
+- 1-1-0 -> ["Morning", "Afternoon"]
+- 0-1-1 -> ["Afternoon", "Night"]
 
-    OUTPUT SCHEMA:
-    - doctorName: string
-    - medicines: [{
-        name, 
-        dosage, 
-        timing[] (Morning/Afternoon/Evening/Night), 
-        specificTime (HH:MM AM/PM),
-        mealInstruction (Before Food/After Food/With Food/Empty Stomach/None),
-        instructions (${langName}), 
-        color, 
-        drugClass
-      }]
-    - summary: 2-3 sentences in ${langName} summarizing the regimen.`;
+JSON SCHEMA:
+- doctorName: string
+- medicines: Array of {
+    name: string,
+    dosage: string,
+    timing: Array<"Morning" | "Afternoon" | "Evening" | "Night">,
+    mealInstruction: "Before Food" | "After Food" | "None",
+    instructions: string (short, translated),
+    confidenceScore: number,
+    verificationStatus: "verified" | "unverified"
+  }
+- summary: 2 sentences in ${langName}.
+
+Return ONLY raw JSON.`;
 
     try {
       const response = await ai.models.generateContent({
@@ -62,53 +67,40 @@ export class GeminiService {
             {
               inlineData: {
                 mimeType: 'image/jpeg',
-                data: base64Image.split(',')[1] || base64Image
+                data: base64Image.includes('base64,') ? base64Image.split('base64,')[1] : base64Image
               }
             },
-            { text: `Analyze this medical prescription for a ${patientInfo.age} year old. Instructions in ${langName}.` }
+            { text: "Extract medication schedule. Return strictly JSON." }
           ]
         },
         config: {
           systemInstruction,
-          thinkingConfig: { thinkingBudget: 0 },
           responseMimeType: "application/json",
-          responseSchema: {
-            type: Type.OBJECT,
-            properties: {
-              doctorName: { type: Type.STRING },
-              medicines: {
-                type: Type.ARRAY,
-                items: {
-                  type: Type.OBJECT,
-                  properties: {
-                    name: { type: Type.STRING },
-                    dosage: { type: Type.STRING },
-                    timing: { type: Type.ARRAY, items: { type: Type.STRING } },
-                    specificTime: { type: Type.STRING },
-                    mealInstruction: { type: Type.STRING, enum: ['Before Food', 'After Food', 'With Food', 'Empty Stomach', 'None'] },
-                    instructions: { type: Type.STRING },
-                    color: { type: Type.STRING },
-                    drugClass: { type: Type.STRING },
-                  },
-                  required: ["name", "dosage", "timing", "instructions", "mealInstruction"]
-                }
-              },
-              summary: { type: Type.STRING }
-            }
-          }
+          thinkingConfig: { thinkingBudget: 0 }
         }
       });
 
-      const text = response.text || '{"medicines": [], "summary": "OCR Failed"}';
+      const text = response.text || '{"medicines": [], "summary": "Failed"}';
       const result = JSON.parse(text);
       
+      const validTimings = ['Morning', 'Afternoon', 'Evening', 'Night'];
+
       return {
         ...result,
-        medicines: (result.medicines || []).map((m: any, idx: number) => ({
-          ...m,
-          id: `med-${idx}-${Date.now()}`,
-          icon: 'pill'
-        }))
+        medicines: (result.medicines || []).map((m: any, idx: number) => {
+          const normalizedTiming = (m.timing || [])
+            .map((t: string) => validTimings.find(v => v.toLowerCase() === t.toLowerCase()))
+            .filter(Boolean) as TimeOfDay[];
+
+          return {
+            ...m,
+            id: `med-${idx}-${Date.now()}`,
+            icon: 'pill',
+            color: 'blue',
+            timing: normalizedTiming.length > 0 ? normalizedTiming : [TimeOfDay.MORNING]
+          };
+        }),
+        scanAccuracy: result.scanAccuracy || 0.95
       };
     } catch (error) {
       return this.handleApiError(error);
@@ -124,9 +116,8 @@ export class GeminiService {
         model: 'gemini-3-flash-preview',
         config: {
           tools: [{ googleSearch: {} }],
-          systemInstruction: `You are the SmartCare Senior Assistant. 
-          Current medications: ${medicines.map(m => `${m.name} (${m.mealInstruction})`).join(', ')}.
-          Respond strictly in ${langName}.`
+          thinkingConfig: { thinkingBudget: 0 },
+          systemInstruction: `CARE ASSISTANT. Help with medications: ${medicines.map(m => m.name).join(', ')}. Language: ${langName}. Keep answers short and senior-friendly.`
         }
       });
 

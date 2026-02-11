@@ -1,5 +1,4 @@
-
-import React, { useEffect, useState, useCallback } from 'react';
+import React, { useEffect, useState, useCallback, useRef, useMemo } from 'react';
 import { TimeOfDay, Language } from '../types';
 
 interface IncomingCallUIProps {
@@ -13,10 +12,10 @@ interface IncomingCallUIProps {
   lang?: Language;
 }
 
-const IncomingCallUI: React.FC<IncomingCallUIProps> = ({ 
-  onAccept, 
-  onDecline, 
-  callerName, 
+const IncomingCallUI: React.FC<IncomingCallUIProps> = ({
+  onAccept,
+  onDecline,
+  callerName,
   medicineName,
   dosage,
   instructions,
@@ -26,19 +25,33 @@ const IncomingCallUI: React.FC<IncomingCallUIProps> = ({
   const [isAnswered, setIsAnswered] = useState(false);
   const [timer, setTimer] = useState(0);
   const [isHangingUp, setIsHangingUp] = useState(false);
+  const [isListening, setIsListening] = useState(false);
+  const [isSpeaking, setIsSpeaking] = useState(false);
+  const [visualizerBars, setVisualizerBars] = useState<number[]>(new Array(20).fill(15));
 
-  const t = {
+  const recognitionRef = useRef<any>(null);
+  // FIX #6: Use refs for stable callback identities to break circular dep chains
+  const isHangingUpRef = useRef(isHangingUp);
+  const isAnsweredRef = useRef(isAnswered);
+  isHangingUpRef.current = isHangingUp;
+  isAnsweredRef.current = isAnswered;
+
+  // FIX #4: Memoize translation object so it doesn't change on every render
+  const translations = useMemo(() => ({
     en: {
       incoming: "Priority Health Call",
-      answered: "Encrypted Session",
+      answered: "Secure Medical Line",
       decline: "Reject",
       answer: "Accept",
       hangup: "End Call",
-      doseReminder: "Medicine Due Now",
-      schedule: "Patient Directive",
+      doseReminder: "Action Required",
+      schedule: "Patient Instructions",
       aiFinish: "Updating logs...",
-      speak: (med: string, dose: string, inst: string) => 
-        `Hello. This is your SmartCare safety assistant. It is time for your medication: ${dose} of ${med}. My records indicate: ${inst}. Please consume your medication immediately.`
+      listening: "Awaiting confirmation...",
+      confMsg: "Excellent. Dose recorded. Stay healthy.",
+      ask: "Please say 'Yes' or 'Done' once taken.",
+      speak: (med: string, inst: string) =>
+        `Hello, I am assistant and please take ${med}. My specific instruction is: ${inst}. Please say 'Yes' or 'Done' once taken.`
     },
     hi: {
       incoming: "ज़रूरी स्वास्थ्य कॉल",
@@ -46,182 +59,343 @@ const IncomingCallUI: React.FC<IncomingCallUIProps> = ({
       decline: "काटें",
       answer: "बात करें",
       hangup: "फोन रखें",
-      doseReminder: "दवा का समय हो गया है",
+      doseReminder: "दवा का समय",
       schedule: "रोगी निर्देश",
       aiFinish: "रिकॉर्ड अपडेट हो रहे हैं...",
-      speak: (med: string, dose: string, inst: string) => 
-        `नमस्ते। यह आपका स्मार्टकेयर सुरक्षा सहायक है। आपकी दवा का समय हो गया है। आपको ${med} की ${dose} लेनी है। निर्देश हैं: ${inst}। कृपया अपनी दवा तुरंत लें और अपना ध्यान रखें।`
+      listening: "पुष्टि का इंतज़ार...",
+      confMsg: "बहुत अच्छा। दवा दर्ज की गई।",
+      ask: "दवा लेने के बाद 'हाँ' कहें।",
+      speak: (med: string, inst: string) =>
+        `नमस्ते, मैं आपका सहायक हूँ और कृपया ${med} लें। निर्देश है: ${inst}। दवा लेने के बाद हाँ कहें।`
     },
     te: {
-      incoming: "ముఖ్యమైన ఆరోగ్య కాల్",
+      incoming: "ముఖ్యమైన కాల్",
       answered: "సురక్షిత సెషన్",
       decline: "వద్దు",
       answer: "మాట్లాడండి",
       hangup: "ముగించు",
-      doseReminder: "మందుల సమయం అయింది",
+      doseReminder: "మందుల సమయం",
       schedule: "రోగి మార్గదర్శకాలు",
       aiFinish: "అప్‌డేట్ అవుతోంది...",
-      speak: (med: string, dose: string, inst: string) => 
-        `నమస్కారం. ఇది మీ స్మార్ట్‌కేర్ రక్షణ సహాయకుడిని. మీ మందుల సమయం అయింది. మీరు ${med} యొక్క ${dose} మోతాదు తీసుకోవాలి. సూచనలు ఇవి: ${inst}. దయచేసి ఇప్పుడే మీ మందు తీసుకోండి.`
+      listening: "నిర్ధారణ కోసం...",
+      confMsg: "చాలా బాగుంది. రికార్డ్ చేసాను.",
+      ask: "తీసుకున్న తర్వాత 'అవును' అనండి.",
+      speak: (med: string, inst: string) =>
+        `నమస్కారం, నేను మీ సహాయకుడిని మరియు దయచేసి ${med} తీసుకోండి. సూచన: ${inst}. తీసుకున్న తర్వాత అవును అనండి.`
     }
-  }[lang] || {
-    en: {
-      incoming: "Priority Health Call",
-      answered: "Encrypted Session",
-      decline: "Reject",
-      answer: "Accept",
-      hangup: "End Call",
-      doseReminder: "Medicine Due Now",
-      schedule: "Patient Directive",
-      aiFinish: "Updating logs...",
-      speak: (med: string, dose: string, inst: string) => `Hello. Time for medicine.`
-    }
-  };
+  }), []); // stable — no deps needed, purely static data
+
+  const t = translations[lang as keyof typeof translations] || translations.en;
+
+  const getLocale = useCallback(() => {
+    if (lang === 'hi') return 'hi-IN';
+    if (lang === 'te') return 'te-IN';
+    return 'en-US';
+  }, [lang]);
 
   const forceStopSpeech = useCallback(() => {
     if ('speechSynthesis' in window) {
       window.speechSynthesis.cancel();
+      setIsSpeaking(false);
     }
   }, []);
 
-  useEffect(() => {
-    let interval: any;
-    if (isAnswered && !isHangingUp) {
-      interval = setInterval(() => setTimer(t => t + 1), 1000);
-      
-      if ('speechSynthesis' in window) {
-        forceStopSpeech();
-        const locale = lang === 'hi' ? 'hi-IN' : lang === 'te' ? 'te-IN' : 'en-US';
-        const speechText = t.speak(medicineName, dosage, instructions);
-        const utterance = new SpeechSynthesisUtterance(speechText);
-        utterance.lang = locale;
-        utterance.rate = 0.8;
-        window.speechSynthesis.speak(utterance);
-      }
+  const handleHangup = useCallback(() => {
+    setIsHangingUp(true);
+    forceStopSpeech();
+    if (recognitionRef.current) {
+      try {
+        recognitionRef.current.stop();
+      } catch (e) {}
+      // FIX #8: Clear the ref after stopping
+      recognitionRef.current = null;
     }
-    
+    setTimeout(() => {
+      onDecline();
+    }, 1200);
+  }, [onDecline, forceStopSpeech]);
+
+  // FIX #6: Keep handleHangup in a ref so speakConfirmation doesn't need it as a dep
+  const handleHangupRef = useRef(handleHangup);
+  handleHangupRef.current = handleHangup;
+
+  const speakConfirmation = useCallback(() => {
+    if ('speechSynthesis' in window) {
+      const utterance = new SpeechSynthesisUtterance(t.confMsg);
+      utterance.lang = getLocale();
+      utterance.rate = 1.0;
+      utterance.onstart = () => setIsSpeaking(true);
+      utterance.onend = () => {
+        setIsSpeaking(false);
+        // FIX #6: Call via ref — no dep on handleHangup directly
+        handleHangupRef.current();
+      };
+      window.speechSynthesis.speak(utterance);
+    }
+  }, [t.confMsg, getLocale]); // handleHangup removed from deps
+
+  // FIX #6: Keep speakConfirmation in a ref so startListening doesn't need it as a dep
+  const speakConfirmationRef = useRef(speakConfirmation);
+  speakConfirmationRef.current = speakConfirmation;
+
+  // FIX #1 & #2: Removed isListening and isAnswered from deps (used refs instead)
+  // FIX #3: recognition.onend now restarts on silence rather than being a no-op
+  const startListening = useCallback(() => {
+    // FIX #10: Removed non-existent `webkitRecognition` from the fallback chain
+    const SpeechRecognition =
+      (window as any).SpeechRecognition ||
+      (window as any).webkitSpeechRecognition;
+    if (!SpeechRecognition) return;
+
+    try {
+      const recognition = new SpeechRecognition();
+      recognitionRef.current = recognition;
+      recognition.lang = getLocale();
+      recognition.continuous = false;
+      recognition.interimResults = false;
+
+      recognition.onstart = () => setIsListening(true);
+
+      recognition.onresult = (event: any) => {
+        const transcript = event.results[0][0].transcript.toLowerCase();
+        const keywords = ['yes', 'taken', 'done', 'ok', 'haan', 'le li', 'ji', 'avunu', 'teesukunna', 'pills'];
+        if (keywords.some(k => transcript.includes(k))) {
+          setIsListening(false);
+          speakConfirmationRef.current();
+        }
+        // If no keyword matched, onend will fire and restart automatically (FIX #3)
+      };
+
+      recognition.onerror = () => {
+        setIsListening(false);
+      };
+
+      // FIX #3: Actually restart on silence/no-match instead of dead no-op
+      recognition.onend = () => {
+        setIsListening(false);
+        if (!isHangingUpRef.current && isAnsweredRef.current) {
+          try {
+            recognition.start();
+          } catch (e) {}
+        }
+      };
+
+      recognition.start();
+    } catch (e) {
+      console.error('Speech Recognition failed to start', e);
+    }
+  }, [getLocale]); // FIX #1: isListening, isAnswered, isHangingUp removed — using refs
+
+  // Visualizer Animation Loop
+  useEffect(() => {
+    let animationFrame: number;
+    const animate = () => {
+      if (isAnswered && !isHangingUp) {
+        setVisualizerBars(prev =>
+          prev.map(() => {
+            if (isSpeaking) return 20 + Math.random() * 80;
+            if (isListening) return 10 + Math.random() * 40;
+            return 5 + Math.random() * 10;
+          })
+        );
+      }
+      animationFrame = requestAnimationFrame(animate);
+    };
+    animate();
+    return () => cancelAnimationFrame(animationFrame);
+  }, [isAnswered, isHangingUp, isSpeaking, isListening]);
+
+  // Speech + Timer effect
+  // FIX #2: startListening called via ref so it's not a dep here
+  // FIX #4: t replaced with lang as the dep (t is now stable via useMemo anyway)
+  // FIX #5: cleanup only cancels speech — does not re-trigger on every dep change
+  useEffect(() => {
+    if (!isAnswered || isHangingUp) return;
+
+    const interval = setInterval(() => setTimer(prev => prev + 1), 1000); // FIX #7: renamed to prev
+
+    if ('speechSynthesis' in window) {
+      forceStopSpeech();
+      const speechText = t.speak(medicineName, instructions);
+      const utterance = new SpeechSynthesisUtterance(speechText);
+      utterance.lang = getLocale();
+      utterance.rate = 0.9;
+      utterance.onstart = () => setIsSpeaking(true);
+      utterance.onend = () => {
+        setIsSpeaking(false);
+        // FIX #2: Call via ref — startListening identity won't affect this effect
+        if (!isHangingUpRef.current) {
+          startListening();
+        }
+      };
+      window.speechSynthesis.speak(utterance);
+    }
+
     return () => {
       clearInterval(interval);
+      // FIX #5: Only cancel speech here, not on every dep change
       forceStopSpeech();
+      if (recognitionRef.current) {
+        try {
+          recognitionRef.current.stop();
+        } catch (e) {}
+        // FIX #8: Clear the ref
+        recognitionRef.current = null;
+      }
     };
-  }, [isAnswered, isHangingUp, medicineName, dosage, instructions, lang, forceStopSpeech]);
+  }, [isAnswered, isHangingUp]); // FIX #2 & #4: startListening and t removed from deps
 
   const handleAccept = () => {
     setIsAnswered(true);
-    if (onAccept) onAccept();
-  };
-
-  const handleHangup = () => {
-    setIsHangingUp(true);
-    forceStopSpeech();
-    setTimeout(() => {
-      onDecline();
-    }, 500);
+    onAccept();
   };
 
   return (
-    <div className={`fixed inset-0 z-[100] bg-slate-950 flex flex-col items-center justify-between py-12 md:py-20 transition-all duration-500 overflow-hidden ${isHangingUp ? 'opacity-0 scale-95' : 'opacity-100'}`}>
+    <div
+      className={`fixed inset-0 z-[100] bg-slate-950 flex flex-col items-center justify-between py-10 md:py-16 transition-all duration-700 overflow-hidden ${
+        isHangingUp ? 'opacity-0 scale-95 blur-lg' : 'opacity-100'
+      }`}
+    >
+      {/* Immersive Background Effects */}
       {!isAnswered && !isHangingUp && (
-        <div className="absolute inset-0 flex items-center justify-center -z-10">
-          <div className="w-[150%] h-[150%] bg-blue-500/10 rounded-full animate-ping-slow"></div>
-          <div className="absolute w-[80%] h-[80%] bg-blue-400/10 rounded-full animate-pulse"></div>
+        <div className="absolute inset-0 flex items-center justify-center -z-10 overflow-hidden">
+          <div className="w-[140%] h-[140%] bg-blue-600/5 rounded-full animate-ping-slow"></div>
+          <div className="absolute w-[100%] h-[100%] bg-blue-500/10 rounded-full animate-pulse"></div>
         </div>
       )}
 
-      <div className="text-center space-y-6 relative z-10 px-6 shrink-0">
-        <div className={`w-28 h-28 bg-blue-600 rounded-[2.5rem] mx-auto flex items-center justify-center text-5xl shadow-[0_0_40px_rgba(37,99,235,0.4)] border-4 border-white/20 transition-all ${isAnswered ? 'scale-90 opacity-80' : 'animate-bounce'}`}>
-          {isHangingUp ? '👋' : '🤖'}
+      {/* Header Info */}
+      <div className="text-center space-y-4 relative z-10 px-6 w-full max-w-lg">
+        <div
+          className={`w-24 h-24 md:w-32 md:h-32 bg-blue-600 rounded-[2.5rem] mx-auto flex items-center justify-center text-5xl md:text-6xl shadow-[0_0_50px_rgba(37,99,235,0.4)] border-4 border-white/20 transition-all duration-700 ${
+            isAnswered ? 'scale-75 opacity-60' : 'animate-bounce'
+          }`}
+        >
+          {isHangingUp ? '💊' : '🤖'}
         </div>
         <div className="space-y-1">
-          <h2 className="text-4xl font-black text-white tracking-tight">{isHangingUp ? 'Session Ended' : callerName}</h2>
-          <p className="text-blue-400 text-lg font-black uppercase tracking-[0.2em] opacity-80">
-            {isAnswered && !isHangingUp ? `${t.answered} • ${Math.floor(timer / 60)}:${(timer % 60).toString().padStart(2, '0')}` : isHangingUp ? t.aiFinish : t.doseReminder}
+          <h2 className="text-3xl md:text-5xl font-black text-white tracking-tighter">
+            {isHangingUp
+              ? 'Finishing...'
+              : isAnswered
+              ? callerName
+              : 'Priority Health Alert'}
+          </h2>
+          <p className="text-blue-400 text-sm md:text-base font-black uppercase tracking-[0.3em] opacity-90">
+            {isAnswered && !isHangingUp
+              ? `${t.answered} • ${Math.floor(timer / 60)}:${(timer % 60)
+                  .toString()
+                  .padStart(2, '0')}`
+              : isHangingUp
+              ? t.aiFinish
+              : t.doseReminder}
           </p>
         </div>
       </div>
 
-      <div className="flex-1 w-full flex flex-col items-center justify-center px-6 overflow-hidden">
+      {/* Main Content Area */}
+      <div className="flex-1 w-full flex flex-col items-center justify-center px-6 md:px-12 max-w-2xl overflow-hidden py-4">
         {isAnswered && !isHangingUp ? (
-          <div className="max-w-md w-full animate-in zoom-in-95 duration-500 text-center flex flex-col h-full max-h-[60%] justify-center">
-            <div className="bg-white/10 backdrop-blur-2xl p-8 rounded-[3.5rem] border border-white/20 shadow-2xl space-y-6 overflow-y-auto custom-scrollbar">
-              <p className="text-blue-300 text-[10px] font-black uppercase tracking-[0.4em] mb-4">{t.schedule}</p>
-              <div className="space-y-4">
-                <div className="space-y-1">
-                  <p className="text-white text-3xl font-black leading-tight tracking-tight">
-                    {medicineName}
-                  </p>
-                  <p className="text-blue-400 text-xl font-black">{dosage}</p>
-                </div>
-                <div className="flex justify-center items-end gap-1.5 h-16">
-                  {[...Array(10)].map((_, i) => (
-                     <span 
-                      key={i} 
-                      className="w-1.5 bg-blue-500 rounded-full animate-voice-pulse" 
-                      style={{ 
-                        height: `${30 + Math.random() * 70}%`,
-                        animationDelay: `${i * 0.1}s`
-                      }}
-                     ></span>
-                  ))}
-                </div>
-                <p className="text-slate-100 font-bold italic leading-relaxed text-lg px-4 py-3 bg-white/5 rounded-2xl">
-                  "{instructions}"
+          <div className="w-full animate-in zoom-in-95 fade-in duration-700 text-center flex flex-col gap-6">
+            {/* Medicine Info Card */}
+            <div className="bg-white/5 backdrop-blur-3xl p-6 md:p-10 rounded-[3rem] border border-white/10 shadow-2xl space-y-6 md:space-y-8">
+              <div className="space-y-2">
+                <p className="text-blue-400 text-[10px] md:text-xs font-black uppercase tracking-[0.3em] opacity-70">
+                  {t.schedule}
                 </p>
+                <p className="text-white text-2xl md:text-4xl font-black tracking-tight">
+                  {medicineName}
+                </p>
+                <p className="text-white/60 text-sm md:text-base">{dosage}</p>
               </div>
+
+              <div className="bg-white/5 rounded-2xl p-4 text-left">
+                <p className="text-white/50 text-xs uppercase tracking-widest mb-1">Instructions</p>
+                <p className="text-white/90 text-sm md:text-base leading-relaxed">{instructions}</p>
+              </div>
+
+              {/* Audio Visualizer */}
+              <div className="flex items-end justify-center gap-1 h-16">
+                {visualizerBars.map((height, i) => (
+                  <div
+                    key={i}
+                    className={`w-1.5 rounded-full transition-all duration-75 ${
+                      isSpeaking
+                        ? 'bg-blue-400'
+                        : isListening
+                        ? 'bg-green-400'
+                        : 'bg-white/20'
+                    }`}
+                    style={{ height: `${height}%` }}
+                  />
+                ))}
+              </div>
+
+              {/* Status Label */}
+              <p className="text-white/50 text-xs md:text-sm uppercase tracking-widest">
+                {isSpeaking ? '🔊 Speaking...' : isListening ? `🎙️ ${t.listening}` : t.ask}
+              </p>
             </div>
           </div>
         ) : !isHangingUp ? (
-          <div className="text-center space-y-4">
-              <p className="text-slate-400 font-black text-sm uppercase tracking-widest">{t.incoming}</p>
-              <h3 className="text-white text-5xl font-black tracking-tighter">{medicineName}</h3>
-              <p className="text-blue-400 text-2xl font-black">{dosage}</p>
+          /* Incoming call card */
+          <div className="w-full text-center flex flex-col gap-4">
+            <div className="bg-white/5 backdrop-blur-3xl p-6 rounded-[2rem] border border-white/10">
+              <p className="text-white/40 text-xs uppercase tracking-widest mb-3">{t.incoming}</p>
+              <p className="text-white text-xl font-bold">{callerName}</p>
+              <p className="text-blue-400 text-sm mt-1">{medicineName} — {dosage}</p>
+            </div>
           </div>
         ) : null}
       </div>
 
-      <div className="w-full max-w-sm px-8 relative z-50 shrink-0">
-        {!isAnswered ? (
-          <div className="flex justify-around items-center">
-            <button 
-              onClick={handleHangup} 
-              className="flex flex-col items-center gap-4 group"
+      {/* Action Buttons */}
+      <div className="flex items-center justify-center gap-8 md:gap-16 relative z-10 w-full px-6">
+        {!isAnswered && !isHangingUp && (
+          <>
+            {/* Decline */}
+            <button
+              onClick={handleHangup}
+              className="flex flex-col items-center gap-2 group"
+              aria-label={t.decline}
             >
-              <div className="w-20 h-20 bg-red-600 rounded-full flex items-center justify-center shadow-xl group-hover:bg-red-700 transition-all hover:scale-110 active:scale-90 border-4 border-red-500/30">
-                <svg xmlns="http://www.w3.org/2000/svg" className="h-10 w-10 text-white" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={3} d="M6 18L18 6M6 6l12 12" />
-                </svg>
+              <div className="w-16 h-16 md:w-20 md:h-20 bg-red-500 hover:bg-red-400 rounded-full flex items-center justify-center text-2xl md:text-3xl shadow-[0_0_30px_rgba(239,68,68,0.4)] transition-all duration-200 group-hover:scale-110 active:scale-95">
+                📵
               </div>
-              <span className="text-red-500 font-black uppercase text-[10px] tracking-widest">{t.decline}</span>
+              <span className="text-white/60 text-xs font-semibold uppercase tracking-widest">
+                {t.decline}
+              </span>
             </button>
-            <button 
-              onClick={handleAccept} 
-              className="flex flex-col items-center gap-4 group"
+
+            {/* Accept */}
+            <button
+              onClick={handleAccept}
+              className="flex flex-col items-center gap-2 group"
+              aria-label={t.answer}
             >
-              <div className="w-24 h-24 bg-emerald-500 rounded-full flex items-center justify-center shadow-[0_0_30px_rgba(16,185,129,0.4)] group-hover:bg-emerald-600 animate-bounce transition-all hover:scale-110 active:scale-90 border-4 border-emerald-400/30">
-                <svg xmlns="http://www.w3.org/2000/svg" className="h-12 w-12 text-white" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={3} d="M3 5a2 2 0 012-2h3.28a1 1 0 01.948.684l1.498 4.493a1 1 0 01-.502 1.21l-2.257 1.13a11.042 11.042 0 005.516 5.516l1.13-2.257a1 1 0 011.21-.502l4.493 1.498a1 1 0 01.684.949V19a2 2 0 01-2 2h-1C9.716 21 3 14.284 3 6V5z" />
-                </svg>
+              <div className="w-16 h-16 md:w-20 md:h-20 bg-green-500 hover:bg-green-400 rounded-full flex items-center justify-center text-2xl md:text-3xl shadow-[0_0_30px_rgba(34,197,94,0.4)] transition-all duration-200 group-hover:scale-110 active:scale-95 animate-pulse">
+                📞
               </div>
-              <span className="text-emerald-500 font-black uppercase text-[10px] tracking-widest">{t.answer}</span>
+              <span className="text-white/60 text-xs font-semibold uppercase tracking-widest">
+                {t.answer}
+              </span>
             </button>
-          </div>
-        ) : (
-          <div className="flex flex-col items-center space-y-8 py-4 bg-slate-900/50 rounded-[3rem] border border-white/5">
-            <button 
-              onClick={handleHangup} 
-              className="flex flex-col items-center gap-4 group"
-            >
-              <div className="w-24 h-24 bg-red-600 rounded-full flex items-center justify-center shadow-[0_0_50px_rgba(220,38,38,0.6)] group-hover:bg-red-700 transition-all hover:scale-105 active:scale-95 border-[6px] border-white/20">
-                <svg xmlns="http://www.w3.org/2000/svg" className="h-12 w-12 text-white transform rotate-[135deg]" fill="currentColor" viewBox="0 0 24 24">
-                  <path d="M6.62 10.79a15.15 15.15 0 006.59 6.59l2.2-2.2a1 1 0 011.11-.27c1.12.45 2.33.69 3.58.69a1 1 0 011 1V20a1 1 0 01-1 1A17 17 0 013 4a1 1 0 011-1h3.5a1 1 0 011 1c0 1.25.24 2.46.69 3.58a1 1 0 01-.27 1.11l-2.3 2.3z" />
-                </svg>
-              </div>
-              <div className="flex flex-col items-center">
-                <span className="text-white font-black uppercase text-sm tracking-[0.4em] animate-pulse">{t.hangup}</span>
-                <span className="text-slate-500 font-black text-[9px] uppercase tracking-widest mt-1">{t.aiFinish}</span>
-              </div>
-            </button>
-          </div>
+          </>
+        )}
+
+        {isAnswered && !isHangingUp && (
+          <button
+            onClick={handleHangup}
+            className="flex flex-col items-center gap-2 group"
+            aria-label={t.hangup}
+          >
+            <div className="w-16 h-16 md:w-20 md:h-20 bg-red-500 hover:bg-red-400 rounded-full flex items-center justify-center text-2xl md:text-3xl shadow-[0_0_30px_rgba(239,68,68,0.4)] transition-all duration-200 group-hover:scale-110 active:scale-95">
+              📵
+            </div>
+            <span className="text-white/60 text-xs font-semibold uppercase tracking-widest">
+              {t.hangup}
+            </span>
+          </button>
         )}
       </div>
     </div>

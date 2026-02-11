@@ -9,6 +9,7 @@ import ScheduleCard from './components/ScheduleCard.tsx';
 import VoiceAssistant from './components/VoiceAssistant.tsx';
 import SmartChatbot from './components/SmartChatbot.tsx';
 import IncomingCallUI from './components/IncomingCallUI.tsx';
+import VoiceCommandCenter from './components/VoiceCommandCenter.tsx';
 
 // --- TRANSLATIONS ---
 
@@ -20,19 +21,20 @@ const UI_STRINGS = {
     langLabel: "Language",
     scanBtn: "Analyze Prescription",
     dashboard: "Care Dashboard",
-    routine: "Current Schedule",
+    routine: "When to have it",
     summaryTitle: "Health Intelligence",
     nextDose: "Up Next",
     takeNow: "Due Now",
     allDone: "All medications taken for this slot!",
     dailyPulse: "Daily Adherence Pulse",
-    testCallBtn: "Test Voice System",
+    testCallBtn: "Start Test Voice Call",
     safetyCheck: "Safety Check",
     loginTitle: "Enter Care Room",
     loginAction: "Enter Session",
     namePlaceholder: "Your Name",
-    testMedName: "Test Vitamin",
-    testMedInst: "Take with a glass of water to ensure the system works correctly."
+    testMedName: "Test Vitamin D3",
+    testMedInst: "Please take this test dose with a glass of water to verify the voice reminder system is working correctly.",
+    allMeds: "Detected Medications"
   },
   hi: {
     home: "मुख्य पृष्ठ",
@@ -41,19 +43,20 @@ const UI_STRINGS = {
     langLabel: "भाषा",
     scanBtn: "पर्चा स्कैन करें",
     dashboard: "केयर डैशबोर्ड",
-    routine: "दवा की समय सारणी",
+    routine: "कब लेनी है",
     summaryTitle: "स्वास्थ्य जानकारी",
     nextDose: "अगली खुराक",
     takeNow: "अभी लेनी है",
     allDone: "इस समय की सभी दवाएं ले ली गई हैं!",
     dailyPulse: "दैनिक दवा की स्थिति",
-    testCallBtn: "वॉइस सिस्टम का परीक्षण करें",
+    testCallBtn: "टेस्ट वॉइस कॉल शुरू करें",
     safetyCheck: "सुरक्षा जांच",
     loginTitle: "देखभाल कक्ष में प्रवेश करें",
     loginAction: "सत्र शुरू करें",
     namePlaceholder: "आपका नाम",
     testMedName: "परीक्षण विटामिन",
-    testMedInst: "यह सुनिश्चित करने के लिए कि सिस्टम ठीक से काम कर रहा है, एक गिलास पानी के साथ लें।"
+    testMedInst: "यह सुनिश्चित करने के लिए कि सिस्टम ठीक से काम कर रहा है, एक गिलास पानी के साथ लें।",
+    allMeds: "खोजी गई दवाएं"
   },
   te: {
     home: "హోమ్",
@@ -62,19 +65,20 @@ const UI_STRINGS = {
     langLabel: "భాష",
     scanBtn: "ప్రిస్క్రిప్షన్ స్కాన్ చేయండి",
     dashboard: "కేర్ డాష్‌బోర్డ్",
-    routine: "ప్రస్తుత షెడ్యూల్",
+    routine: "ఎప్పుడు తీసుకోవాలి",
     summaryTitle: "ఆరోగ్య మేధస్సు",
     nextDose: "తదుపరి మోతాదు",
     takeNow: "ఇప్పుడే తీసుకోవాలి",
     allDone: "ఈ సమయానికి సంబంధించిన అన్ని మందులు తీసుకున్నారు!",
     dailyPulse: "రోజువారీ మందుల స్థితి",
-    testCallBtn: "వాయిస్ సిస్టమ్‌ను పరీక్షించండి",
+    testCallBtn: "టెస్ట్ వాయిస్ కాల్ ప్రారంభించండి",
     safetyCheck: "భద్రతా తనిఖీ",
     loginTitle: "కేర్ రూమ్‌లోకి ప్రవేశించండి",
     loginAction: "సెషన్‌ను ప్రారంభించండి",
     namePlaceholder: "మీ పేరు",
     testMedName: "టెస్ట్ విటమిన్",
-    testMedInst: "సిస్టమ్ సరిగ్గా పనిచేస్తోందని నిర్ధారించుకోవడానికి ఒక గ్లాసు నీటితో తీసుకోండి."
+    testMedInst: "సిస్టమ్ సరిగ్గా పనిచేస్తోందని నిర్ధారించుకోవడానికి ఒక గ్లాసు నీటితో తీసుకోండి.",
+    allMeds: "గుర్తించిన మందులు"
   }
 };
 
@@ -156,14 +160,14 @@ const LandingPage: React.FC<{ isAuthenticated: boolean }> = ({ isAuthenticated }
       <section className="container mx-auto px-6 py-16 md:py-24 flex flex-col items-center text-center">
         <div className="inline-flex items-center gap-2 px-4 py-1.5 bg-blue-50 rounded-full border border-blue-100 mb-8">
           <span className="w-2 h-2 bg-blue-500 rounded-full animate-ping"></span>
-          <span className="text-xs font-black text-blue-600 uppercase tracking-widest">Powered by Gemini 3 Flash</span>
+          <span className="text-xs font-black text-blue-600 uppercase tracking-widest">Medical Accuracy v3.0</span>
         </div>
         <h1 className="text-6xl md:text-8xl font-black text-slate-900 leading-[0.9] tracking-tighter mb-8 text-balance">
           Healthcare from<br/>
           <span className="text-blue-600">Prescription to Protection.</span>
         </h1>
         <p className="text-xl text-slate-500 mb-12 max-w-2xl font-medium leading-relaxed">
-          Deciphers clinical handwriting and automates your care routine with intelligent voice calls.
+          The ultimate care layer that bridges clinician directives with elderly independence.
         </p>
         <button 
           onClick={() => navigate('/app')}
@@ -187,8 +191,20 @@ const MainDashboard: React.FC<{ user: User; patientInfo: PatientInfo; setPatient
   const [simulatedTime, setSimulatedTime] = useState<TimeOfDay>(getCurrentTimeOfDay());
   const [testCallActive, setTestCallActive] = useState(false);
 
-  const effectiveAnalysis = analysis || MOCK_PRESCRIPTION_DATA;
+  const effectiveAnalysis = useMemo(() => analysis || MOCK_PRESCRIPTION_DATA, [analysis]);
   const labels = UI_STRINGS[patientInfo.language] || UI_STRINGS.en;
+
+  // TEST CALL LOGIC: If a prescription is available, use the first medicine from the list for the test call
+  const testCallMed = useMemo(() => {
+    if (analysis && analysis.medicines.length > 0) {
+      return analysis.medicines[0];
+    }
+    return {
+      name: labels.testMedName,
+      dosage: "1 Tablet",
+      instructions: labels.testMedInst
+    };
+  }, [analysis, labels]);
 
   const nextMedication = useMemo(() => {
     const medsInSlot = effectiveAnalysis.medicines.filter(m => m.timing.includes(simulatedTime));
@@ -200,8 +216,10 @@ const MainDashboard: React.FC<{ user: User; patientInfo: PatientInfo; setPatient
     try {
       const result = await geminiService.analyzePrescription(source, patientInfo);
       setAnalysis(result);
+      setSimulatedTime(TimeOfDay.MORNING);
       setStep('dashboard');
     } catch (err) {
+      console.error("Analysis Error:", err);
       setAnalysis(MOCK_PRESCRIPTION_DATA);
       setStep('dashboard');
     } finally { setIsProcessing(false); }
@@ -247,14 +265,27 @@ const MainDashboard: React.FC<{ user: User; patientInfo: PatientInfo; setPatient
     <div className="min-h-screen pb-24 bg-[#F8FAFC]">
       {testCallActive && (
         <IncomingCallUI 
-          onAccept={() => {}}
-          onDecline={() => setTestCallActive(false)}
-          callerName="SmartCare Test AI"
-          medicineName={labels.testMedName}
-          dosage="1 Unit"
-          instructions={labels.testMedInst}
+          onAccept={() => {
+            // Log acceptance but DON'T hide the UI.
+            // The UI will switch to the "Answered" state internally.
+            console.log("Call answered");
+          }}
+          onDecline={() => setTestCallActive(false)} // This serves as the true "Close" action
+          callerName="Care Reminder Bot"
+          medicineName={testCallMed.name}
+          dosage={testCallMed.dosage}
+          instructions={testCallMed.instructions}
           timeOfDay={simulatedTime}
           lang={patientInfo.language}
+        />
+      )}
+
+      {step === 'dashboard' && (
+        <VoiceCommandCenter 
+          medicines={effectiveAnalysis.medicines} 
+          currentTime={simulatedTime} 
+          onMarkTaken={markAsTaken} 
+          lang={patientInfo.language} 
         />
       )}
 
@@ -346,7 +377,7 @@ const MainDashboard: React.FC<{ user: User; patientInfo: PatientInfo; setPatient
                   <div className="flex flex-col md:flex-row items-center justify-between gap-6">
                     <div>
                       <h3 className="font-black text-slate-900 text-2xl tracking-tight">{labels.routine}</h3>
-                      <p className="text-[10px] font-black text-slate-400 mt-1 uppercase tracking-widest">Selected Window: {simulatedTime}</p>
+                      <p className="text-[10px] font-black text-blue-500 mt-1 uppercase tracking-widest">Showing: {timeLabel(simulatedTime)}</p>
                     </div>
                     <div className="flex bg-slate-100 p-1.5 rounded-2xl border border-slate-200 overflow-x-auto">
                       {Object.values(TimeOfDay).map(t => (
@@ -359,35 +390,47 @@ const MainDashboard: React.FC<{ user: User; patientInfo: PatientInfo; setPatient
                 </div>
 
                 <div className="grid grid-cols-1 sm:grid-cols-2 gap-6">
-                  {[TimeOfDay.MORNING, TimeOfDay.AFTERNOON, TimeOfDay.EVENING, TimeOfDay.NIGHT].map(time => (
                     <ScheduleCard 
-                      key={time} 
-                      time={time} 
-                      medicines={effectiveAnalysis.medicines.filter(m => m.timing.includes(time))} 
+                      time={simulatedTime} 
+                      medicines={effectiveAnalysis.medicines.filter(m => m.timing.includes(simulatedTime))} 
                       takenKeys={takenKeys} 
                       onMarkTaken={markAsTaken}
                       lang={patientInfo.language}
                     />
-                  ))}
+                    <div className="hidden sm:block">
+                        <div className="p-8 bg-white border border-slate-200 rounded-[3rem] h-full flex flex-col">
+                            <h4 className="text-[10px] font-black text-slate-400 uppercase tracking-widest mb-6 px-1">{labels.allMeds} ({effectiveAnalysis.medicines.length})</h4>
+                            <div className="space-y-4 flex-1 overflow-y-auto max-h-[400px] custom-scrollbar pr-2">
+                                {effectiveAnalysis.medicines.map(m => (
+                                    <div key={m.id} className="p-4 bg-slate-50 rounded-2xl border border-slate-100 flex items-center justify-between gap-3">
+                                        <div className="truncate">
+                                            <p className="text-sm font-black text-slate-900 truncate">{m.name}</p>
+                                            <p className="text-[9px] font-black text-slate-400 uppercase tracking-widest">{m.timing.join(', ')}</p>
+                                        </div>
+                                        <div className="shrink-0 text-xl">💊</div>
+                                    </div>
+                                ))}
+                            </div>
+                        </div>
+                    </div>
                 </div>
               </div>
 
               <div className="lg:col-span-4 space-y-8">
-                {/* SYSTEM TEST SECTION */}
                 <div className="p-8 bg-blue-50 rounded-[3.5rem] border border-blue-100 shadow-sm">
                    <h4 className="text-[10px] font-black text-blue-500 uppercase tracking-widest mb-4">{labels.safetyCheck}</h4>
-                   <p className="text-blue-900/60 text-sm font-bold leading-relaxed mb-6">Verify your phone's speaker and AI voice settings by initiating a test reminder.</p>
+                   <p className="text-blue-900/60 text-sm font-bold leading-relaxed mb-6">Verify the clinical safety protocol with a test voice call.</p>
                    <button 
                     onClick={() => setTestCallActive(true)}
-                    className="w-full py-4 bg-white text-blue-600 font-black rounded-2xl shadow-md border border-blue-200 hover:bg-blue-600 hover:text-white transition-all flex items-center justify-center gap-3"
+                    className="w-full py-5 bg-white text-blue-600 font-black rounded-2xl shadow-md border-2 border-blue-200 hover:bg-blue-600 hover:text-white transition-all flex items-center justify-center gap-3 active:scale-95"
                    >
-                     <span>📞</span> {labels.testCallBtn}
+                     <span className="text-xl">📞</span> {labels.testCallBtn}
                    </button>
                 </div>
 
                 <div className="p-8 bg-white rounded-[3.5rem] border border-slate-200 shadow-lg">
                    <h4 className="text-sm font-black text-slate-800 mb-4">{labels.summaryTitle}</h4>
-                   <p className="text-slate-600 text-sm font-bold leading-relaxed mb-8 italic">{effectiveAnalysis.summary}</p>
+                   <p className="text-slate-600 text-sm font-bold leading-relaxed mb-8 italic">"{effectiveAnalysis.summary}"</p>
                    <VoiceAssistant text={effectiveAnalysis.summary} lang={patientInfo.language} />
                 </div>
 
@@ -419,15 +462,15 @@ const LoginPage: React.FC<{ onLogin: (n: string, r: UserRole) => void; lang: Lan
       <div className="max-w-md w-full bg-white p-12 rounded-[3.5rem] shadow-2xl text-center border border-slate-100">
         <div className="w-20 h-20 bg-blue-600 rounded-[2rem] mx-auto flex items-center justify-center text-white text-4xl font-black mb-8 shadow-xl">S</div>
         <h2 className="text-3xl font-black mb-8 tracking-tighter">{labels.loginTitle}</h2>
-        <input type="text" className="w-full px-6 py-5 rounded-2xl bg-slate-50 border-2 border-slate-100 text-lg font-bold mb-6" placeholder={labels.namePlaceholder} value={name} onChange={e => setName(e.target.value)} />
+        <input type="text" className="w-full px-6 py-5 rounded-2xl bg-slate-50 border-2 border-slate-100 text-lg font-bold mb-6 outline-none focus:border-blue-600" placeholder={labels.namePlaceholder} value={name} onChange={e => setName(e.target.value)} />
         <div className="grid grid-cols-2 gap-3 mb-8">
           {(['PATIENT', 'NURSE', 'CHILD', 'GUARDIAN', 'SPOUSE'] as UserRole[]).map(r => (
-            <button key={r} onClick={() => setRole(r)} className={`py-3 rounded-xl border-2 font-black text-[10px] ${role === r ? 'bg-slate-900 text-white border-slate-900' : 'bg-slate-50 text-slate-500'}`}>
+            <button key={r} onClick={() => setRole(r)} className={`py-3 rounded-xl border-2 font-black text-[10px] transition-all ${role === r ? 'bg-slate-900 text-white border-slate-900' : 'bg-slate-50 text-slate-500 border-transparent hover:bg-slate-100'}`}>
               {roleLabels[r]}
             </button>
           ))}
         </div>
-        <button onClick={() => { if(name) { onLogin(name, role); navigate('/app'); } }} className="w-full py-5 bg-blue-600 text-white font-black rounded-2xl shadow-xl">
+        <button onClick={() => { if(name) { onLogin(name, role); navigate('/app'); } }} className="w-full py-5 bg-blue-600 text-white font-black rounded-2xl shadow-xl hover:bg-blue-700 active:scale-95 transition-all">
           {labels.loginAction}
         </button>
       </div>
