@@ -7,11 +7,13 @@ export enum TimeOfDay {
 }
 
 export type Language = 'en' | 'hi' | 'te';
+export type UserRole = 'PATIENT' | 'NURSE' | 'CHILD' | 'GUARDIAN' | 'SPOUSE';
 
 export interface User {
   id: string;
   name: string;
   email: string;
+  role: UserRole;
   profileImage?: string;
 }
 

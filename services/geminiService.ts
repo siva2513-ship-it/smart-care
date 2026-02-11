@@ -10,15 +10,12 @@ export class GeminiService {
     console.error("Gemini API Error Context:", error);
     const errorMessage = error?.message || String(error);
     
-    // Check for specific session-related errors
     if (errorMessage.includes("Requested entity was not found") || errorMessage.includes("API_KEY_INVALID")) {
       console.warn("API Key session lost or invalid. Triggering recovery.");
       if (typeof window !== 'undefined') {
         const win = window as any;
-        // Prompt for key selection if available
         if (win.aistudio && typeof win.aistudio.openSelectKey === 'function') {
           await win.aistudio.openSelectKey();
-          // We don't refresh here to avoid losing user progress, but the next call will use the new key.
         }
       }
     }
@@ -34,23 +31,23 @@ export class GeminiService {
   }
 
   async analyzePrescription(base64Image: string, patientInfo: PatientInfo): Promise<PrescriptionAnalysis> {
-    // ALWAYS instantiate fresh to capture the most recent API key from the environment
     const ai = new GoogleGenAI({ apiKey: process.env.API_KEY });
     const langName = this.getLanguageName(patientInfo.language);
     
-    const systemInstruction = `YOU ARE AN ELITE CLINICAL PHARMACY OCR SYSTEM.
+    const systemInstruction = `YOU ARE AN ELITE CLINICAL PHARMACY OCR & DIAGNOSTIC SYSTEM.
     
-    CRITICAL PROTOCOL:
-    1. CLINICAL DISAMBIGUATION: Doctors often write 'm' like 'n' or 'a' like 'o'. Cross-reference all extracted text with a pharmaceutical database. If you see "Anoxicillun", correct it to "Amoxicillin".
-    2. DOSE SANITY CHECK: Flag if a dose seems unusually high for a ${patientInfo.age} year old.
-    3. ABBREVIATION EXPANSION: Convert all Latin sigs (OD, BID, TID, AC, PC) into plain ${langName} instructions.
-    4. ACCESSIBILITY: Use warm, encouraging language. Avoid medical jargon where possible.
+    OBJECTIVE: Extract and translate handwritten clinical prescriptions for a ${patientInfo.age}yo patient.
+    
+    OCR PROTOCOL:
+    1. CLINICAL DISAMBIGUATION: Correct sloppy handwriting using pharmaceutical context (e.g., 'm' vs 'n' confusion). 
+    2. DRUG CLASS VERIFICATION: Identify the class (Antibiotic, NSAID, etc.) and cross-check common dosage levels for the patient's age.
+    3. ABBREVIATION EXPANSION: Convert Latin sigs (OD, BID, TID, TDS, AC, PC, QID) into plain ${langName} instructions.
+    4. SAFETY ALERT: If a dose seems life-threateningly high for a ${patientInfo.age}yo, flag it in the summary.
+    5. VISUAL FINDER: Describe the medicine color/shape based on the name (e.g., 'White round pill') to help the patient identify it.
 
     OUTPUT SCHEMA:
-    - medicines: List of detected medications.
-    - timing: MUST be subset of ["Morning", "Afternoon", "Evening", "Night"].
-    - color: Describe the pill color for the user to find it easily.
-    - instructions: Numbered steps in ${langName}.`;
+    - medicines: name, dosage, timing (subset of ["Morning", "Afternoon", "Evening", "Night"]), instructions (${langName}), color, drugClass.
+    - summary: A comforting, professional 2-3 sentence overview in ${langName}.`;
 
     try {
       const response = await ai.models.generateContent({
@@ -63,7 +60,7 @@ export class GeminiService {
                 data: base64Image.split(',')[1] || base64Image
               }
             },
-            { text: `Scan this prescription for a ${patientInfo.age}yo patient. Provide clear ${langName} instructions.` }
+            { text: `Analyze this prescription for a ${patientInfo.age}yo patient. Translate all patient-facing text to ${langName}.` }
           ]
         },
         config: {
@@ -94,7 +91,7 @@ export class GeminiService {
         }
       });
 
-      const text = response.text || '{"medicines": [], "summary": "Scanning error"}';
+      const text = response.text || '{"medicines": [], "summary": "Error: OCR engine failed."}';
       const result = JSON.parse(text);
       
       return {
@@ -119,15 +116,14 @@ export class GeminiService {
         model: 'gemini-3-flash-preview',
         config: {
           tools: [{ googleSearch: {} }],
-          systemInstruction: `You are a warm Medical Safety Assistant. 
-          Current Meds: ${medicines.map(m => m.name).join(', ')}.
-          Patient: ${patientInfo.age}yo with ${patientInfo.condition}.
+          systemInstruction: `You are the SmartCare Medical Assistant. 
+          Context: Patient is ${patientInfo.age}yo, Condition: ${patientInfo.condition}.
+          Current Medications: ${medicines.map(m => m.name).join(', ')}.
           
-          RULES:
-          1. Use Google Search to verify drug interactions.
-          2. ALWAYS warn that you are an AI and they must consult a doctor for emergencies.
-          3. Respond strictly in ${langName}.
-          4. If symptoms sound serious, advise immediate ER/Doctor visit.`
+          GUIDELINES:
+          1. Use Google Search for drug interactions/side effects.
+          2. Respond strictly in ${langName}.
+          3. Emergency: Advise calling emergency services for critical symptoms.`
         }
       });
 

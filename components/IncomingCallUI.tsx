@@ -1,5 +1,5 @@
 
-import React, { useEffect, useState } from 'react';
+import React, { useEffect, useState, useCallback } from 'react';
 import { TimeOfDay, Language } from '../types';
 
 interface IncomingCallUIProps {
@@ -25,6 +25,7 @@ const IncomingCallUI: React.FC<IncomingCallUIProps> = ({
 }) => {
   const [isAnswered, setIsAnswered] = useState(false);
   const [timer, setTimer] = useState(0);
+  const [isHangingUp, setIsHangingUp] = useState(false);
 
   const t = {
     en: {
@@ -77,17 +78,21 @@ const IncomingCallUI: React.FC<IncomingCallUIProps> = ({
     }
   };
 
+  const forceStopSpeech = useCallback(() => {
+    if ('speechSynthesis' in window) {
+      window.speechSynthesis.cancel();
+    }
+  }, []);
+
   useEffect(() => {
     let interval: any;
-    if (isAnswered) {
+    if (isAnswered && !isHangingUp) {
       interval = setInterval(() => setTimer(t => t + 1), 1000);
       
       if ('speechSynthesis' in window) {
-        window.speechSynthesis.cancel();
-        
+        forceStopSpeech();
         const locale = lang === 'hi' ? 'hi-IN' : lang === 'te' ? 'te-IN' : 'en-US';
         const speechText = t.speak(medicineName, dosage, instructions);
-
         const utterance = new SpeechSynthesisUtterance(speechText);
         utterance.lang = locale;
         utterance.rate = 0.8;
@@ -97,11 +102,9 @@ const IncomingCallUI: React.FC<IncomingCallUIProps> = ({
     
     return () => {
       clearInterval(interval);
-      if ('speechSynthesis' in window) {
-        window.speechSynthesis.cancel();
-      }
+      forceStopSpeech();
     };
-  }, [isAnswered, medicineName, dosage, instructions, lang]);
+  }, [isAnswered, isHangingUp, medicineName, dosage, instructions, lang, forceStopSpeech]);
 
   const handleAccept = () => {
     setIsAnswered(true);
@@ -109,15 +112,17 @@ const IncomingCallUI: React.FC<IncomingCallUIProps> = ({
   };
 
   const handleHangup = () => {
-    if ('speechSynthesis' in window) {
-      window.speechSynthesis.cancel();
-    }
-    onDecline();
+    setIsHangingUp(true);
+    forceStopSpeech();
+    // Small delay to allow visual transition before unmounting
+    setTimeout(() => {
+      onDecline();
+    }, 500);
   };
 
   return (
-    <div className="fixed inset-0 z-[100] bg-slate-950 flex flex-col items-center justify-between py-12 md:py-20 animate-in fade-in duration-700 overflow-hidden">
-      {!isAnswered && (
+    <div className={`fixed inset-0 z-[100] bg-slate-950 flex flex-col items-center justify-between py-12 md:py-20 transition-all duration-500 overflow-hidden ${isHangingUp ? 'opacity-0 scale-95' : 'opacity-100'}`}>
+      {!isAnswered && !isHangingUp && (
         <div className="absolute inset-0 flex items-center justify-center -z-10">
           <div className="w-[150%] h-[150%] bg-blue-500/10 rounded-full animate-ping-slow"></div>
           <div className="absolute w-[80%] h-[80%] bg-blue-400/10 rounded-full animate-pulse"></div>
@@ -127,19 +132,19 @@ const IncomingCallUI: React.FC<IncomingCallUIProps> = ({
       {/* Header Info */}
       <div className="text-center space-y-6 relative z-10 px-6 shrink-0">
         <div className={`w-28 h-28 bg-blue-600 rounded-[2.5rem] mx-auto flex items-center justify-center text-5xl shadow-[0_0_40px_rgba(37,99,235,0.4)] border-4 border-white/20 transition-all ${isAnswered ? 'scale-90 opacity-80' : 'animate-bounce'}`}>
-          🤖
+          {isHangingUp ? '👋' : '🤖'}
         </div>
         <div className="space-y-1">
-          <h2 className="text-4xl font-black text-white tracking-tight">{callerName}</h2>
+          <h2 className="text-4xl font-black text-white tracking-tight">{isHangingUp ? 'Session Ended' : callerName}</h2>
           <p className="text-blue-400 text-lg font-black uppercase tracking-[0.2em] opacity-80">
-            {isAnswered ? `${t.answered} • ${Math.floor(timer / 60)}:${(timer % 60).toString().padStart(2, '0')}` : t.doseReminder}
+            {isAnswered && !isHangingUp ? `${t.answered} • ${Math.floor(timer / 60)}:${(timer % 60).toString().padStart(2, '0')}` : isHangingUp ? t.aiFinish : t.doseReminder}
           </p>
         </div>
       </div>
 
       {/* Main Content Area */}
       <div className="flex-1 w-full flex flex-col items-center justify-center px-6 overflow-hidden">
-        {isAnswered ? (
+        {isAnswered && !isHangingUp ? (
           <div className="max-w-md w-full animate-in zoom-in-95 duration-500 text-center flex flex-col h-full max-h-[60%] justify-center">
             <div className="bg-white/10 backdrop-blur-2xl p-8 rounded-[3.5rem] border border-white/20 shadow-2xl space-y-6 overflow-y-auto custom-scrollbar">
               <p className="text-blue-300 text-[10px] font-black uppercase tracking-[0.4em] mb-4">{t.schedule}</p>
@@ -168,13 +173,13 @@ const IncomingCallUI: React.FC<IncomingCallUIProps> = ({
               </div>
             </div>
           </div>
-        ) : (
+        ) : !isHangingUp ? (
           <div className="text-center space-y-4">
               <p className="text-slate-400 font-black text-sm uppercase tracking-widest">{t.incoming}</p>
               <h3 className="text-white text-5xl font-black tracking-tighter">{medicineName}</h3>
               <p className="text-blue-400 text-2xl font-black">{dosage}</p>
           </div>
-        )}
+        ) : null}
       </div>
 
       {/* Action Controls - Fixed at Bottom */}

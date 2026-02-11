@@ -1,7 +1,7 @@
 
 import React, { useState, useEffect, useCallback } from 'react';
 import { HashRouter as Router, Routes, Route, Link, useNavigate, Navigate, useLocation } from 'react-router-dom';
-import { PrescriptionAnalysis, TimeOfDay, ReminderPreference, PatientInfo, User, Medicine, Language } from './types';
+import { PrescriptionAnalysis, TimeOfDay, ReminderPreference, PatientInfo, User, Medicine, Language, UserRole } from './types';
 import { geminiService } from './services/geminiService';
 import { MOCK_PRESCRIPTION_DATA } from './constants';
 import PrescriptionUpload from './components/PrescriptionUpload';
@@ -92,8 +92,8 @@ const useAuth = () => {
     return saved ? JSON.parse(saved) : null;
   });
 
-  const login = (name: string) => {
-    const newUser = { id: 'u1', name, email: `${name.toLowerCase()}@care.com` };
+  const login = (name: string, role: UserRole) => {
+    const newUser: User = { id: 'u1', name, email: `${name.toLowerCase()}@care.com`, role };
     setUser(newUser);
     localStorage.setItem('scr_user', JSON.stringify(newUser));
   };
@@ -129,7 +129,7 @@ const Nav: React.FC<{ user: User | null; onLogout: () => void; lang: Language }>
             <div className="flex items-center gap-4 pl-6 border-l border-slate-200">
               <div className="hidden sm:flex flex-col items-end">
                 <p className="text-[11px] font-black text-slate-900 leading-none">{user.name}</p>
-                <p className="text-[9px] font-bold text-blue-600 uppercase tracking-widest mt-1">Authorized User</p>
+                <p className="text-[9px] font-bold text-blue-600 uppercase tracking-widest mt-1">{user.role}</p>
               </div>
               <button onClick={onLogout} className="px-3 py-1.5 bg-slate-100 text-slate-600 font-black text-[10px] rounded-lg hover:bg-red-50 hover:text-red-600 transition-all border border-slate-200">Exit</button>
             </div>
@@ -164,21 +164,6 @@ const LandingPage: React.FC<{ isAuthenticated: boolean }> = ({ isAuthenticated }
         >
           {isAuthenticated ? 'Open Dashboard' : 'Get Started Free'}
         </button>
-
-        <div className="w-full max-w-6xl grid grid-cols-1 md:grid-cols-3 gap-8">
-          {[
-            { icon: "📄", title: "Scan", desc: "Handwriting Intelligence", sub: "Scan complex doctor notes.", color: "bg-blue-50" },
-            { icon: "🌍", title: "Translate", desc: "Native Languages", sub: "Reminders in Hindi & Telugu.", color: "bg-indigo-50" },
-            { icon: "📞", title: "Guard", desc: "Safety Calls", sub: "AI calls to confirm you took pills.", color: "bg-emerald-50" }
-          ].map((step, idx) => (
-            <div key={idx} className={`${step.color} p-10 rounded-[3rem] border-2 border-white/50 text-left transition-all hover:scale-[1.02] hover:shadow-xl`}>
-              <div className="text-5xl mb-6">{step.icon}</div>
-              <h3 className="text-2xl font-black text-slate-900 mb-2">{step.title}</h3>
-              <p className="text-blue-600 font-black uppercase text-[10px] tracking-widest mb-4">{step.desc}</p>
-              <p className="text-slate-500 font-bold leading-snug">{step.sub}</p>
-            </div>
-          ))}
-        </div>
       </section>
     </div>
   );
@@ -197,6 +182,10 @@ const MainDashboard: React.FC<{ user: User; patientInfo: PatientInfo; setPatient
   const [simulatedTime, setSimulatedTime] = useState<TimeOfDay>(TimeOfDay.MORNING);
   const [activeCallMed, setActiveCallMed] = useState<Medicine | null>(null);
   const [showCallUI, setShowCallUI] = useState(false);
+  const [lastCallEndedAt, setLastCallEndedAt] = useState<number | null>(null);
+
+  // Use a derived variable for analysis to avoid constant assignment errors in the JSX
+  const effectiveAnalysis = analysis || MOCK_PRESCRIPTION_DATA;
 
   const labels = UI_STRINGS[patientInfo.language] || UI_STRINGS.en;
   
@@ -205,7 +194,20 @@ const MainDashboard: React.FC<{ user: User; patientInfo: PatientInfo; setPatient
     setShowCallUI(true);
   };
 
+  const handleCallDecline = () => {
+    setShowCallUI(false);
+    setActiveCallMed(null);
+    // Signal call end to trigger chatbot "hang up" behavior
+    setLastCallEndedAt(Date.now());
+  };
+
   const handleDataReady = async (source: string) => {
+    // Only Nurse and Patient can scan/upload
+    if (user.role !== 'PATIENT' && user.role !== 'NURSE') {
+      alert("Only Patients and Nurses can modify clinical records.");
+      return;
+    }
+
     setIsProcessing(true);
     try {
       const result = await geminiService.analyzePrescription(source, patientInfo);
@@ -213,18 +215,23 @@ const MainDashboard: React.FC<{ user: User; patientInfo: PatientInfo; setPatient
       setStep('dashboard');
     } catch (err) {
       console.error("Analysis Failed:", err);
-      // Fallback only if absolutely necessary for hackathon stability
       setAnalysis(MOCK_PRESCRIPTION_DATA);
       setStep('dashboard');
     } finally { setIsProcessing(false); }
   };
 
   const markAsTaken = (id: string, time: TimeOfDay) => {
+    // Roles allowed to confirm intake: Patient, Nurse, Spouse, Child (as monitor)
     const next = new Set(takenKeys);
     next.add(`${id}-${time}`);
     setTakenKeys(next);
     localStorage.setItem('scr_taken_keys', JSON.stringify(Array.from(next)));
   };
+
+  // RBAC Checks
+  const canSeePrescriptionDetails = user.role !== 'CHILD';
+  const canModifyPrescription = user.role === 'PATIENT' || user.role === 'NURSE';
+  const canSeeDiagnosis = user.role === 'PATIENT' || user.role === 'NURSE' || user.role === 'SPOUSE' || user.role === 'GUARDIAN';
 
   return (
     <div className="min-h-screen pb-24 bg-[#F8FAFC]">
@@ -237,7 +244,7 @@ const MainDashboard: React.FC<{ user: User; patientInfo: PatientInfo; setPatient
           timeOfDay={simulatedTime}
           lang={patientInfo.language}
           onAccept={() => {}}
-          onDecline={() => setShowCallUI(false)}
+          onDecline={handleCallDecline}
         />
       )}
       
@@ -254,154 +261,84 @@ const MainDashboard: React.FC<{ user: User; patientInfo: PatientInfo; setPatient
               <div className="space-y-2">
                 <label className="text-[10px] font-black text-slate-400 uppercase tracking-[0.2em] px-1">{labels.langLabel}</label>
                 <div className="grid grid-cols-3 gap-3">
-                  {[
-                    {id: 'en', label: 'English', flag: '🇺🇸'},
-                    {id: 'hi', label: 'हिन्दी', flag: '🇮🇳'},
-                    {id: 'te', label: 'తెలుగు', flag: '🇮🇳'}
-                  ].map(lang => (
-                    <button 
-                      key={lang.id} 
-                      onClick={() => setPatientInfo({...patientInfo, language: lang.id as Language})}
-                      className={`py-4 rounded-2xl border-2 font-black text-sm transition-all flex flex-col items-center gap-1 ${patientInfo.language === lang.id ? 'bg-blue-600 text-white border-blue-400 shadow-xl scale-105' : 'bg-slate-50 text-slate-500 border-slate-100 hover:border-blue-200'}`}
-                    >
-                      <span className="text-2xl">{lang.flag}</span>
-                      {lang.label}
-                    </button>
-                  ))}
-                </div>
-              </div>
-
-              <div className="space-y-2">
-                <label className="text-[10px] font-black text-slate-400 uppercase tracking-[0.2em] px-1">{labels.caregiverLabel}</label>
-                <div className="grid grid-cols-2 gap-3">
-                  {(RELATIONSHIPS[patientInfo.language] || RELATIONSHIPS.en).map(rel => (
-                    <button 
-                      key={rel} 
-                      onClick={() => setPatientInfo({...patientInfo, caregiverRelationship: rel})}
-                      className={`py-3 rounded-xl border-2 font-black text-xs transition-all ${patientInfo.caregiverRelationship === rel ? 'bg-slate-900 text-white border-slate-800 shadow-lg' : 'bg-slate-50 text-slate-500 border-slate-100 hover:border-slate-300'}`}
-                    >
-                      {rel}
+                  {['en', 'hi', 'te'].map(lId => (
+                    <button key={lId} onClick={() => setPatientInfo({...patientInfo, language: lId as Language})} className={`py-4 rounded-2xl border-2 font-black text-sm transition-all ${patientInfo.language === lId ? 'bg-blue-600 text-white' : 'bg-slate-50'}`}>
+                      {lId.toUpperCase()}
                     </button>
                   ))}
                 </div>
               </div>
 
               <button 
-                onClick={() => setStep('upload')} 
-                disabled={!patientInfo.age || !patientInfo.caregiverRelationship} 
-                className="w-full py-6 bg-blue-600 text-white text-xl font-black rounded-3xl shadow-xl disabled:opacity-20 hover:scale-105 active:scale-95 transition-all"
+                onClick={() => setStep(canModifyPrescription ? 'upload' : 'dashboard')} 
+                disabled={!patientInfo.age} 
+                className="w-full py-6 bg-blue-600 text-white text-xl font-black rounded-3xl shadow-xl disabled:opacity-20 hover:scale-105 transition-all"
               >
-                {labels.scanBtn}
+                {canModifyPrescription ? labels.scanBtn : labels.dashboard}
               </button>
             </div>
           </div>
         )}
 
-        {step === 'upload' && <PrescriptionUpload onUpload={handleDataReady} isProcessing={isProcessing} />}
+        {step === 'upload' && canModifyPrescription && <PrescriptionUpload onUpload={handleDataReady} isProcessing={isProcessing} />}
 
-        {step === 'dashboard' && analysis && (
+        {/* Fix: use effectiveAnalysis derived variable and simplify the logic to avoid constant assignment error */}
+        {(step === 'dashboard' || (!canModifyPrescription && step === 'upload')) && effectiveAnalysis && (
           <div className="grid grid-cols-1 lg:grid-cols-12 gap-8 animate-in fade-in duration-700">
             <div className="lg:col-span-8 space-y-8">
-              {/* Header Card */}
-              <div className="bg-white p-6 rounded-[3rem] border border-slate-200 shadow-sm flex flex-col md:flex-row items-center justify-between gap-6">
-                <div className="flex items-center gap-5">
-                  <div className="w-14 h-14 bg-blue-600 rounded-2xl flex items-center justify-center text-3xl shadow-lg">📋</div>
-                  <div>
-                    <h3 className="font-black text-slate-900 text-2xl tracking-tight">{labels.dashboard}</h3>
-                    <p className="text-xs font-black text-slate-400 uppercase tracking-widest">{labels.routine}</p>
-                  </div>
-                </div>
-                <div className="flex bg-slate-100 p-1.5 rounded-2xl border border-slate-200">
+              {/* Routine Schedule */}
+              <div className="bg-white p-6 rounded-[3rem] border border-slate-200 shadow-sm flex items-center justify-between">
+                <h3 className="font-black text-slate-900 text-2xl tracking-tight">{labels.routine}</h3>
+                <div className="flex bg-slate-100 p-1.5 rounded-2xl">
                   {Object.values(TimeOfDay).map(t => (
-                    <button key={t} onClick={() => setSimulatedTime(t)} className={`px-5 py-2.5 rounded-xl font-black text-xs transition-all ${simulatedTime === t ? 'bg-white shadow-md text-blue-600' : 'text-slate-400 hover:text-slate-600'}`}>
-                      {t.toUpperCase()}
+                    <button key={t} onClick={() => setSimulatedTime(t)} className={`px-5 py-2.5 rounded-xl font-black text-xs transition-all ${simulatedTime === t ? 'bg-white shadow-md text-blue-600' : 'text-slate-400'}`}>
+                      {t}
                     </button>
                   ))}
                 </div>
               </div>
 
-              {/* Grid of Timings */}
               <div className="grid grid-cols-1 sm:grid-cols-2 gap-6">
                 {[TimeOfDay.MORNING, TimeOfDay.AFTERNOON, TimeOfDay.EVENING, TimeOfDay.NIGHT].map(time => (
                   <ScheduleCard 
                     key={time} 
                     time={time} 
-                    medicines={analysis.medicines.filter(m => m.timing.includes(time))} 
+                    medicines={effectiveAnalysis.medicines.filter(m => m.timing.includes(time))} 
                     takenKeys={takenKeys} 
                     onMarkTaken={markAsTaken} 
                   />
                 ))}
               </div>
-
-              {/* Care Circle Bento Card */}
-              <div className="bg-indigo-600 p-10 rounded-[4rem] text-white shadow-2xl flex flex-col sm:flex-row items-center justify-between gap-10 relative overflow-hidden group">
-                <div className="absolute -top-10 -right-10 opacity-10 group-hover:rotate-12 transition-transform duration-1000">
-                  <div className="w-64 h-64 bg-white rounded-full"></div>
-                </div>
-                <div className="flex items-center gap-8 relative z-10">
-                  <div className="w-20 h-20 bg-white/20 backdrop-blur-2xl rounded-[2.5rem] flex items-center justify-center text-4xl shadow-xl">🛡️</div>
-                  <div>
-                    <h4 className="text-xs font-black text-indigo-200 uppercase tracking-[0.3em] mb-2">{labels.inspectedBy}</h4>
-                    <p className="text-4xl font-black tracking-tight">{patientInfo.caregiverRelationship}</p>
-                    <div className="flex items-center gap-2 mt-2">
-                       <span className="w-2 h-2 bg-emerald-400 rounded-full"></span>
-                       <span className="text-[10px] font-black uppercase text-indigo-100 opacity-80">Online & Monitoring</span>
-                    </div>
-                  </div>
-                </div>
-                <div className="flex flex-col items-center sm:items-end gap-3 relative z-10">
-                  <div className="px-6 py-3 bg-white/10 backdrop-blur-xl rounded-2xl border border-white/20 shadow-inner text-center sm:text-right">
-                    <p className="text-[10px] font-black uppercase tracking-widest text-indigo-100 mb-1">{labels.statusBadge}</p>
-                    <span className="text-lg font-black">{labels.careCircle}</span>
-                  </div>
-                </div>
-              </div>
             </div>
 
-            {/* Sidebar intelligence */}
             <div className="lg:col-span-4 space-y-8">
-              {/* Summary Bento */}
-              <div className="p-8 bg-white rounded-[3.5rem] border border-slate-200 shadow-lg">
-                 <div className="flex items-center justify-between mb-6">
-                   <h4 className="text-sm font-black flex items-center gap-2 text-slate-800">
-                     <span className="text-xl">🧠</span> {labels.summaryTitle}
-                   </h4>
-                   <span className="px-3 py-1 bg-blue-50 text-blue-600 text-[10px] font-black rounded-full uppercase">Real-time</span>
-                 </div>
-                 <p className="text-slate-600 text-sm font-bold leading-relaxed mb-8 italic">{analysis.summary}</p>
-                 <VoiceAssistant text={analysis.summary} lang={patientInfo.language} />
-              </div>
+              {/* Summary / Diagnosis (Restricted) */}
+              {canSeeDiagnosis && (
+                <div className="p-8 bg-white rounded-[3.5rem] border border-slate-200 shadow-lg">
+                   <h4 className="text-sm font-black text-slate-800 mb-4">{labels.summaryTitle}</h4>
+                   <p className="text-slate-600 text-sm font-bold leading-relaxed mb-8 italic">{effectiveAnalysis.summary}</p>
+                   <VoiceAssistant text={effectiveAnalysis.summary} lang={patientInfo.language} />
+                </div>
+              )}
 
-              {/* Voice Guard Status */}
-              <div className="p-8 bg-white rounded-[3.5rem] border border-slate-200 shadow-sm relative overflow-hidden">
-                 <div className="flex items-center justify-between mb-6">
-                    <h4 className="font-black text-slate-900 text-sm uppercase tracking-tight">{labels.safetyMode}</h4>
-                    <div className="flex items-center gap-2">
-                      <span className={`w-3 h-3 rounded-full ${remindersArmed ? 'bg-emerald-500 animate-pulse' : 'bg-red-500'}`}></span>
-                      <span className="text-[10px] font-black text-slate-400 uppercase tracking-widest">{remindersArmed ? labels.armed : labels.off}</span>
-                    </div>
-                 </div>
-                 <button 
-                  onClick={() => setRemindersArmed(!remindersArmed)}
-                  className={`w-full py-5 rounded-2xl font-black text-xs uppercase tracking-widest transition-all ${remindersArmed ? 'bg-emerald-50 text-emerald-600 border-2 border-emerald-100' : 'bg-blue-600 text-white shadow-xl hover:scale-[1.02]'}`}
-                 >
+              {/* Guard Controls */}
+              <div className="p-8 bg-white rounded-[3.5rem] border border-slate-200 shadow-sm">
+                 <h4 className="font-black text-slate-900 text-sm uppercase tracking-tight mb-6">{labels.safetyMode}</h4>
+                 <button onClick={() => setRemindersArmed(!remindersArmed)} className={`w-full py-5 rounded-2xl font-black text-xs uppercase transition-all ${remindersArmed ? 'bg-emerald-50 text-emerald-600' : 'bg-blue-600 text-white'}`}>
                    {remindersArmed ? labels.stopGuard : labels.startGuard}
                  </button>
-                 <button 
-                   onClick={() => triggerCall(analysis.medicines[0] || MOCK_PRESCRIPTION_DATA.medicines[0])}
-                   className="w-full mt-6 text-[10px] font-black text-slate-400 uppercase tracking-widest hover:text-blue-600 transition-colors flex items-center justify-center gap-2"
-                 >
+                 <button onClick={() => triggerCall(effectiveAnalysis.medicines[0])} className="w-full mt-6 text-[10px] font-black text-slate-400 uppercase flex items-center justify-center gap-2">
                    <span>📞</span> {labels.testCall}
                  </button>
               </div>
 
-              {/* Chatbot Bento */}
               <SmartChatbot 
-                analysis={analysis} 
+                analysis={effectiveAnalysis} 
                 onSetReminders={setReminderPref} 
                 activePreference={reminderPref} 
                 patientInfo={patientInfo} 
-                onTriggerCall={() => triggerCall(analysis.medicines[0])}
+                role={user.role}
+                lastCallEndedAt={lastCallEndedAt}
               />
             </div>
           </div>
@@ -411,16 +348,23 @@ const MainDashboard: React.FC<{ user: User; patientInfo: PatientInfo; setPatient
   );
 };
 
-const LoginPage: React.FC<{ onLogin: (n: string) => void }> = ({ onLogin }) => {
+const LoginPage: React.FC<{ onLogin: (n: string, r: UserRole) => void }> = ({ onLogin }) => {
   const [name, setName] = useState('');
+  const [role, setRole] = useState<UserRole>('PATIENT');
   const navigate = useNavigate();
   return (
     <div className="min-h-screen bg-slate-50 flex items-center justify-center p-6">
-      <div className="max-w-xs w-full bg-white p-12 rounded-[3.5rem] shadow-2xl text-center border border-slate-100">
-        <div className="w-20 h-20 bg-blue-600 rounded-[2rem] mx-auto flex items-center justify-center text-white text-4xl font-black mb-8 shadow-xl">S</div>
+      <div className="max-w-md w-full bg-white p-12 rounded-[3.5rem] shadow-2xl text-center border border-slate-100">
         <h2 className="text-3xl font-black mb-8 tracking-tighter">Enter Care Room</h2>
-        <input type="text" className="w-full px-6 py-5 rounded-2xl bg-slate-50 border-2 border-slate-100 text-lg font-bold mb-6 outline-none focus:border-blue-600" placeholder="Your Name" value={name} onChange={e => setName(e.target.value)} />
-        <button onClick={() => { if(name) { onLogin(name); navigate('/app'); } }} className="w-full py-5 bg-slate-900 text-white font-black rounded-2xl shadow-xl hover:bg-blue-600 transition-all">Enter Session</button>
+        <input type="text" className="w-full px-6 py-5 rounded-2xl bg-slate-50 border-2 border-slate-100 text-lg font-bold mb-6" placeholder="Your Name" value={name} onChange={e => setName(e.target.value)} />
+        <div className="grid grid-cols-2 gap-3 mb-8">
+          {(['PATIENT', 'NURSE', 'CHILD', 'GUARDIAN', 'SPOUSE'] as UserRole[]).map(r => (
+            <button key={r} onClick={() => setRole(r)} className={`py-3 rounded-xl border-2 font-black text-[10px] transition-all ${role === r ? 'bg-slate-900 text-white border-slate-900' : 'bg-slate-50 text-slate-500 border-slate-100'}`}>
+              {r}
+            </button>
+          ))}
+        </div>
+        <button onClick={() => { if(name) { onLogin(name, role); navigate('/app'); } }} className="w-full py-5 bg-blue-600 text-white font-black rounded-2xl shadow-xl transition-all">Enter Session</button>
       </div>
     </div>
   );
@@ -434,79 +378,19 @@ const ApiKeyGuard: React.FC<{ children: React.ReactNode }> = ({ children }) => {
     const win = window as any;
     if (!win.aistudio) { setHasKey(true); return; }
     try { 
-      // Robust check for existing key selection
       const s = await win.aistudio.hasSelectedApiKey(); 
       setHasKey(s); 
-    } catch (e) { 
-      console.warn("Key check failed, assuming fallback mode", e);
-      setHasKey(true); 
-    }
+    } catch (e) { setHasKey(true); }
   }, []);
 
   useEffect(() => {
     checkKey();
   }, [checkKey, location.key]);
 
-  const handleKey = async () => { 
-    const win = window as any;
-    if (win.aistudio && typeof win.aistudio.openSelectKey === 'function') {
-      try {
-        await win.aistudio.openSelectKey();
-        // CRITICAL: Assume success immediately to avoid race conditions with background key injection
-        setHasKey(true); 
-      } catch (err) {
-        console.error("Key selection failed", err);
-        setHasKey(true); // Proceed anyway to let service-level error handling take over
-      }
-    } else {
-      setHasKey(true);
-    }
-  };
-
   if (hasKey === null) return null;
   if (!hasKey) return (
-    <div className="min-h-screen bg-slate-950 flex items-center justify-center p-6 relative overflow-hidden">
-      {/* Background Decor */}
-      <div className="absolute top-0 left-0 w-full h-full opacity-10 pointer-events-none">
-        <div className="absolute top-1/4 left-1/4 w-96 h-96 bg-blue-600 rounded-full blur-[120px]"></div>
-        <div className="absolute bottom-1/4 right-1/4 w-96 h-96 bg-indigo-600 rounded-full blur-[120px]"></div>
-      </div>
-
-      <div className="max-w-md w-full bg-white p-12 rounded-[4rem] text-center shadow-3xl border-8 border-slate-900/5 relative z-10 animate-in zoom-in-95 duration-700">
-        <div className="w-24 h-24 bg-blue-600 rounded-[2.5rem] mx-auto flex items-center justify-center text-white text-5xl font-black mb-8 shadow-2xl border-4 border-slate-50">🔑</div>
-        <h2 className="text-4xl font-black mb-6 tracking-tighter text-slate-900 leading-tight">Activate Medical Intelligence</h2>
-        <p className="text-slate-500 font-bold mb-8 text-lg leading-relaxed">
-          Please select a paid API key to enable high-accuracy clinical scanning and real-time medical reasoning.
-        </p>
-        
-        <div className="bg-slate-50 p-6 rounded-3xl mb-10 border-2 border-slate-100 text-left">
-           <p className="text-[10px] font-black text-slate-400 uppercase tracking-widest mb-3 px-1">Mandatory Requirement</p>
-           <ul className="space-y-3">
-              <li className="flex gap-3 text-xs font-bold text-slate-600">
-                <span className="text-blue-500">✓</span> Paid GCP Project required for Gemini 3 Pro
-              </li>
-              <li className="flex gap-3 text-xs font-bold text-slate-600">
-                <span className="text-blue-500">✓</span> Enable billing in your Google AI Studio console
-              </li>
-           </ul>
-        </div>
-
-        <button 
-          onClick={handleKey} 
-          className="w-full py-6 bg-slate-900 text-white rounded-3xl text-xl font-black shadow-2xl hover:bg-blue-600 hover:-translate-y-1 active:translate-y-0 transition-all mb-6"
-        >
-          Select Project Key
-        </button>
-
-        <a 
-          href="https://ai.google.dev/gemini-api/docs/billing" 
-          target="_blank" 
-          rel="noopener noreferrer"
-          className="text-xs font-black text-blue-600 uppercase tracking-widest hover:underline decoration-2 underline-offset-4"
-        >
-          View Billing Documentation ↗
-        </a>
-      </div>
+    <div className="min-h-screen bg-slate-950 flex items-center justify-center p-6">
+      <button onClick={async () => { await (window as any).aistudio.openSelectKey(); setHasKey(true); }} className="bg-white text-slate-900 px-12 py-6 rounded-3xl font-black text-xl shadow-2xl">Activate API Key</button>
     </div>
   );
   return <>{children}</>;
@@ -514,12 +398,11 @@ const ApiKeyGuard: React.FC<{ children: React.ReactNode }> = ({ children }) => {
 
 const App: React.FC = () => {
   const { user, login, logout, isAuthenticated } = useAuth();
-  const [patientInfo, setPatientInfo] = useState<PatientInfo>({ age: '', condition: '', language: 'en', caregiverRelationship: '' });
+  const [patientInfo, setPatientInfo] = useState<PatientInfo>({ age: '', condition: 'General Health', language: 'en', caregiverRelationship: 'Self' });
   
   const handleLogout = () => {
     logout();
-    setPatientInfo({ age: '', condition: '', language: 'en', caregiverRelationship: '' });
-    // Reset state and clear session to ensure KeyGuard triggers on re-entry
+    setPatientInfo({ age: '', condition: 'General Health', language: 'en', caregiverRelationship: 'Self' });
     window.location.reload(); 
   };
 
